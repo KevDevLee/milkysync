@@ -17,7 +17,12 @@ function AppTabs(): React.JSX.Element {
     <Tabs.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#2f6b62'
+        tabBarActiveTintColor: '#2f6b62',
+        tabBarStyle: {
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 6
+        }
       }}
     >
       <Tabs.Screen name="Home" component={DashboardScreen} options={{ title: 'Home' }} />

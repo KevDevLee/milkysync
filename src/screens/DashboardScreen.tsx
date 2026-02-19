@@ -1,23 +1,36 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
-import { formatDateTime, formatRelativeDuration } from '@/utils/date';
+import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
 import { computeNextReminderTimestamp } from '@/utils/reminder';
 
 export function DashboardScreen(): React.JSX.Element {
   const { sessions, dailyTotalMl, addSession, reminderSettings } = useAppData();
   const [submitting, setSubmitting] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 30_000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
 
   const lastSession = sessions[0] ?? null;
   const nextReminderAt = useMemo(
-    () => computeNextReminderTimestamp(lastSession?.timestamp ?? null, reminderSettings.intervalMinutes),
-    [lastSession?.timestamp, reminderSettings.intervalMinutes]
+    () => computeNextReminderTimestamp(lastSession?.timestamp ?? null, reminderSettings.intervalMinutes, now),
+    [lastSession?.timestamp, reminderSettings.intervalMinutes, now]
   );
 
-  const nextReminderLabel = formatRelativeDuration(nextReminderAt, Date.now());
+  const nextReminderLabel = reminderSettings.enabled
+    ? formatRelativeDuration(nextReminderAt, now)
+    : 'Reminders disabled';
 
   const onQuickAdd = async (): Promise<void> => {
     if (submitting) return;
@@ -51,7 +64,9 @@ export function DashboardScreen(): React.JSX.Element {
         <Text style={styles.eyebrow}>Next reminder</Text>
         <Text style={styles.title}>{nextReminderLabel}</Text>
         <Text style={styles.subtitle}>
-          {reminderSettings.enabled ? `Every ${reminderSettings.intervalMinutes} minutes` : 'Reminders disabled'}
+          {reminderSettings.enabled
+            ? `Scheduled for ${formatTime(nextReminderAt)} • Every ${reminderSettings.intervalMinutes} minutes`
+            : 'Turn reminders on in Settings'}
         </Text>
       </View>
 

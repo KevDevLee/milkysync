@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { useAuth } from '@/services/auth/AuthContext';
 import { Screen } from '@/components/Screen';
+import { useAuth } from '@/services/auth/AuthContext';
+import { familyService } from '@/services/family/FamilyService';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile } = useAppData();
-  const { signOut } = useAuth();
+  const { signOut, refreshProfile, sessionUserId } = useAuth();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState('');
+  const [pairingBusy, setPairingBusy] = useState(false);
 
   useEffect(() => {
     setIntervalInput(String(reminderSettings.intervalMinutes));
@@ -26,6 +30,51 @@ export function SettingsScreen(): React.JSX.Element {
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not save settings.');
+    }
+  };
+
+  const onGenerateCode = async (): Promise<void> => {
+    if (!profile.familyId || !sessionUserId) {
+      Alert.alert('Unavailable', 'No family/user context available.');
+      return;
+    }
+
+    try {
+      setPairingBusy(true);
+      const code = await familyService.generateInviteCode({
+        familyId: profile.familyId,
+        createdByUserId: sessionUserId
+      });
+      setGeneratedCode(code);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Could not generate invite code.');
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const onJoinCode = async (): Promise<void> => {
+    if (!sessionUserId || !joinCode.trim()) {
+      Alert.alert('Validation', 'Enter an invite code to join a family.');
+      return;
+    }
+
+    try {
+      setPairingBusy(true);
+      await familyService.joinFamilyByCode({
+        code: joinCode,
+        userId: sessionUserId
+      });
+      await refreshProfile();
+      Alert.alert('Success', 'You are now paired with the family.');
+      setJoinCode('');
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : 'Could not join family.';
+      Alert.alert('Error', message);
+    } finally {
+      setPairingBusy(false);
     }
   };
 
@@ -81,7 +130,36 @@ export function SettingsScreen(): React.JSX.Element {
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Partner Pairing</Text>
         <Text style={styles.helper}>Family ID: {profile.familyId ?? 'Not set'}</Text>
-        <Text style={styles.helper}>Invite code and joining flow will be enabled in Phase E.</Text>
+
+        <Pressable
+          onPress={onGenerateCode}
+          disabled={pairingBusy}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
+        >
+          <Text style={styles.secondaryText}>
+            {pairingBusy ? 'Working...' : 'Generate Invite Code'}
+          </Text>
+        </Pressable>
+
+        {generatedCode ? <Text style={styles.inviteCode}>Invite Code: {generatedCode}</Text> : null}
+
+        <TextInput
+          value={joinCode}
+          onChangeText={setJoinCode}
+          placeholder="Enter invite code"
+          autoCapitalize="characters"
+          style={styles.input}
+        />
+
+        <Pressable
+          onPress={onJoinCode}
+          disabled={pairingBusy}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
+        >
+          <Text style={styles.secondaryText}>{pairingBusy ? 'Working...' : 'Join Family'}</Text>
+        </Pressable>
       </View>
 
       <Pressable
@@ -147,6 +225,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  secondaryText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  inviteCode: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 1.2
   },
   savePressed: {
     opacity: 0.85

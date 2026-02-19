@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { useAuth } from '@/services/auth/AuthContext';
 import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile } = useAppData();
+  const { signOut } = useAuth();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
 
@@ -27,9 +29,24 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  const onSignOut = async (): Promise<void> => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Could not sign out.');
+    }
+  };
+
   return (
     <Screen>
       <Text style={styles.title}>Settings</Text>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Logged in as</Text>
+        <Text style={styles.helper}>{profile.email}</Text>
+        <Text style={styles.helper}>Role: {profile.role}</Text>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.label}>Reminder every (minutes)</Text>
@@ -66,6 +83,14 @@ export function SettingsScreen(): React.JSX.Element {
         <Text style={styles.helper}>Family ID: {profile.familyId ?? 'Not set'}</Text>
         <Text style={styles.helper}>Invite code and joining flow will be enabled in Phase E.</Text>
       </View>
+
+      <Pressable
+        onPress={onSignOut}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.logoutButton, pressed && styles.savePressed]}
+      >
+        <Text style={styles.logoutText}>Log Out</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -127,6 +152,18 @@ const styles = StyleSheet.create({
     opacity: 0.85
   },
   saveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700'
+  },
+  logoutButton: {
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: '#c35b5b',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  logoutText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700'

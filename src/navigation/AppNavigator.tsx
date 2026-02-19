@@ -1,3 +1,4 @@
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -6,6 +7,9 @@ import { AuthScreen } from '@/screens/AuthScreen';
 import { DashboardScreen } from '@/screens/DashboardScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { useAuth } from '@/services/auth/AuthContext';
+import { AppDataProvider } from '@/state/AppDataContext';
+import { colors } from '@/theme/colors';
 
 import { AppTabsParamList, AuthStackParamList } from './types';
 
@@ -34,15 +38,42 @@ function AppTabs(): React.JSX.Element {
 }
 
 export function AppNavigator(): React.JSX.Element {
-  const isAuthenticated = true;
+  const { loading, sessionUserId, profile } = useAuth();
 
-  if (isAuthenticated) {
-    return <AppTabs />;
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.text}>Loading your account...</Text>
+      </View>
+    );
+  }
+
+  if (!sessionUserId || !profile) {
+    return (
+      <Stack.Navigator>
+        <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
+      </Stack.Navigator>
+    );
   }
 
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
-    </Stack.Navigator>
+    <AppDataProvider profile={profile}>
+      <AppTabs />
+    </AppDataProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    gap: 8
+  },
+  text: {
+    color: colors.textSecondary,
+    fontSize: 15
+  }
+});

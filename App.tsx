@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { initializeDatabase } from '@/db/database';
 import { AppNavigator } from '@/navigation/AppNavigator';
-import { AppDataProvider } from '@/state/AppDataContext';
+import { AuthProvider } from '@/services/auth/AuthContext';
 import { colors } from '@/theme/colors';
 
 export default function App(): React.JSX.Element {
@@ -48,10 +48,10 @@ export default function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <AppDataProvider>
+        <AuthProvider>
           <StatusBar style="dark" />
           <AppNavigator />
-        </AppDataProvider>
+        </AuthProvider>
       </NavigationContainer>
     </SafeAreaProvider>
   );

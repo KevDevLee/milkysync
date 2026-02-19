@@ -1,8 +1,10 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 
 import { pumpSessionRepository } from '@/repositories/PumpSessionRepository';
 import { reminderSettingsRepository } from '@/repositories/ReminderSettingsRepository';
 import { userRepository } from '@/repositories/UserRepository';
+import { syncService } from '@/services/sync/SyncService';
 import { ReminderSettings, PumpSession, UserProfile } from '@/types/models';
 import { endOfLocalDay, startOfLocalDay } from '@/utils/date';
 
@@ -20,6 +22,7 @@ type AppDataContextValue = {
   reminderSettings: ReminderSettings;
   loading: boolean;
   refresh: () => Promise<void>;
+  syncNow: () => Promise<void>;
   addSession: (input: AddSessionInput) => Promise<PumpSession>;
   saveReminderSettings: (input: { intervalMinutes: number; enabled: boolean }) => Promise<void>;
 };
@@ -64,18 +67,40 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
     setReminderSettings(nextSettings);
   }, [profile.familyId, profile.id]);
 
+  const syncNow = useCallback(async () => {
+    try {
+      await syncService.sync(profile);
+      await refresh();
+    } catch (error) {
+      console.error('Sync failed', error);
+    }
+  }, [profile, refresh]);
+
   useEffect(() => {
     (async () => {
       try {
         await userRepository.upsert(profile, false);
         await refresh();
+        await syncNow();
       } catch (error) {
         console.error('Failed to initialize app data', error);
       } finally {
         setLoading(false);
       }
     })();
-  }, [profile, refresh]);
+  }, [profile, refresh, syncNow]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        void syncNow();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [syncNow]);
 
   const addSession = useCallback(
     async (input: AddSessionInput) => {
@@ -94,9 +119,10 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       });
 
       await refresh();
+      void syncNow();
       return saved;
     },
-    [profile.familyId, profile.id, refresh]
+    [profile.familyId, profile.id, refresh, syncNow]
   );
 
   const saveReminderSettings = useCallback(
@@ -107,8 +133,9 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
         enabled: input.enabled
       });
       setReminderSettings(nextSettings);
+      void syncNow();
     },
-    [profile.id]
+    [profile.id, syncNow]
   );
 
   const value = useMemo<AppDataContextValue>(
@@ -119,10 +146,21 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       reminderSettings,
       loading,
       refresh,
+      syncNow,
       addSession,
       saveReminderSettings
     }),
-    [addSession, dailyTotalMl, loading, profile, refresh, reminderSettings, saveReminderSettings, sessions]
+    [
+      addSession,
+      dailyTotalMl,
+      loading,
+      profile,
+      refresh,
+      reminderSettings,
+      saveReminderSettings,
+      sessions,
+      syncNow
+    ]
   );
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

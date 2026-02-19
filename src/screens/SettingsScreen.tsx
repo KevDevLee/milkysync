@@ -8,7 +8,7 @@ import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 
 export function SettingsScreen(): React.JSX.Element {
-  const { reminderSettings, saveReminderSettings, profile } = useAppData();
+  const { reminderSettings, saveReminderSettings, profile, syncNow } = useAppData();
   const { signOut, refreshProfile, sessionUserId } = useAuth();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
@@ -67,6 +67,7 @@ export function SettingsScreen(): React.JSX.Element {
         userId: sessionUserId
       });
       await refreshProfile();
+      await syncNow();
       Alert.alert('Success', 'You are now paired with the family.');
       setJoinCode('');
     } catch (error) {
@@ -84,6 +85,16 @@ export function SettingsScreen(): React.JSX.Element {
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not sign out.');
+    }
+  };
+
+  const onSyncNow = async (): Promise<void> => {
+    try {
+      await syncNow();
+      Alert.alert('Synced', 'Local and cloud data are in sync.');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Sync failed.');
     }
   };
 
@@ -163,6 +174,14 @@ export function SettingsScreen(): React.JSX.Element {
       </View>
 
       <Pressable
+        onPress={onSyncNow}
+        accessibilityRole="button"
+        style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
+      >
+        <Text style={styles.secondaryText}>Sync Now</Text>
+      </Pressable>
+
+      <Pressable
         onPress={onSignOut}
         accessibilityRole="button"
         style={({ pressed }) => [styles.logoutButton, pressed && styles.savePressed]}
@@ -232,7 +251,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 12
   },
   secondaryText: {
     color: colors.primary,

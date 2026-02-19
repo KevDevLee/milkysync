@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/services/auth/AuthContext';
 import { colors } from '@/theme/colors';
 import { UserRole } from '@/types/models';
+import { reportError } from '@/utils/error';
 
 type AuthMode = 'login' | 'signup';
 
@@ -44,9 +45,7 @@ export function AuthScreen(): React.JSX.Element {
         });
       }
     } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : 'Authentication failed';
-      Alert.alert('Auth error', message);
+      Alert.alert('Auth error', reportError(error, 'Authentication failed'));
     } finally {
       setSubmitting(false);
     }

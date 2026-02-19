@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
+import { reportError } from '@/utils/error';
 import { computeNextReminderTimestamp } from '@/utils/reminder';
 
 export function DashboardScreen(): React.JSX.Element {
@@ -45,8 +46,7 @@ export function DashboardScreen(): React.JSX.Element {
       });
       Alert.alert('Saved', 'Quick session added.');
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not add quick session.');
+      Alert.alert('Error', reportError(error, 'Could not add quick session.'));
     } finally {
       setSubmitting(false);
     }

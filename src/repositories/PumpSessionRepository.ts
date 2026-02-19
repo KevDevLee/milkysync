@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 
 import { getDatabase } from '@/db/database';
 import { PumpSession } from '@/types/models';
+import { shouldApplyRemoteUpdate } from '@/utils/conflict';
 import { computeTotalMl } from '@/utils/pump';
 
 type PumpSessionRow = {
@@ -163,7 +164,7 @@ export class PumpSessionRepository {
       session.id
     );
 
-    if (existing && existing.updated_at > session.updatedAt) {
+    if (!shouldApplyRemoteUpdate(existing?.updated_at ?? null, session.updatedAt)) {
       return;
     }
 

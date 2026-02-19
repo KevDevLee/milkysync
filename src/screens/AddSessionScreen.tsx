@@ -14,6 +14,7 @@ import {
 import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
+import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
 
 export function AddSessionScreen(): React.JSX.Element {
@@ -48,8 +49,7 @@ export function AddSessionScreen(): React.JSX.Element {
       setTimestamp(new Date());
       Alert.alert('Saved', 'Pump session stored locally.');
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Unable to save session right now.');
+      Alert.alert('Error', reportError(error, 'Unable to save session right now.'));
     } finally {
       setSaving(false);
     }

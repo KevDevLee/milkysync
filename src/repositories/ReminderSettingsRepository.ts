@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 
 import { getDatabase } from '@/db/database';
 import { ReminderSettings } from '@/types/models';
+import { shouldApplyRemoteUpdate } from '@/utils/conflict';
 
 type ReminderSettingsRow = {
   id: string;
@@ -103,7 +104,7 @@ export class ReminderSettingsRepository {
       settings.userId
     );
 
-    if (existing && existing.updated_at > settings.updatedAt) {
+    if (!shouldApplyRemoteUpdate(existing?.updated_at ?? null, settings.updatedAt)) {
       return;
     }
 

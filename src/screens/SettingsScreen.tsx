@@ -6,6 +6,7 @@ import { useAuth } from '@/services/auth/AuthContext';
 import { familyService } from '@/services/family/FamilyService';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
+import { reportError } from '@/utils/error';
 
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile, syncNow } = useAppData();
@@ -28,8 +29,7 @@ export function SettingsScreen(): React.JSX.Element {
       await saveReminderSettings({ intervalMinutes, enabled });
       Alert.alert('Saved', 'Reminder settings updated.');
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not save settings.');
+      Alert.alert('Error', reportError(error, 'Could not save settings.'));
     }
   };
 
@@ -47,8 +47,7 @@ export function SettingsScreen(): React.JSX.Element {
       });
       setGeneratedCode(code);
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not generate invite code.');
+      Alert.alert('Error', reportError(error, 'Could not generate invite code.'));
     } finally {
       setPairingBusy(false);
     }
@@ -71,9 +70,7 @@ export function SettingsScreen(): React.JSX.Element {
       Alert.alert('Success', 'You are now paired with the family.');
       setJoinCode('');
     } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : 'Could not join family.';
-      Alert.alert('Error', message);
+      Alert.alert('Error', reportError(error, 'Could not join family.'));
     } finally {
       setPairingBusy(false);
     }
@@ -83,8 +80,7 @@ export function SettingsScreen(): React.JSX.Element {
     try {
       await signOut();
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Could not sign out.');
+      Alert.alert('Error', reportError(error, 'Could not sign out.'));
     }
   };
 
@@ -93,8 +89,7 @@ export function SettingsScreen(): React.JSX.Element {
       await syncNow();
       Alert.alert('Synced', 'Local and cloud data are in sync.');
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Sync failed.');
+      Alert.alert('Error', reportError(error, 'Sync failed.'));
     }
   };
 

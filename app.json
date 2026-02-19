@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "MilkySync",
+    "slug": "milkysync",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "milkysync",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f3f8f3"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.milkysync.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f3f8f3"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.milkysync.app"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2f6b62"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    }
+  }
+}

@@ -209,11 +209,32 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
         throw error;
       }
 
-      const user = data.user;
+      let user = data.user;
+      let session = data.session;
 
       if (!user) {
         throw new Error('Signup succeeded but no user returned. Check Supabase email confirmation settings.');
       }
+
+      // Some Supabase configurations return a user without an active session.
+      // We need an authenticated session to insert into families/profiles under RLS.
+      if (!session) {
+        const signInResult = await supabase.auth.signInWithPassword({
+          email: input.email,
+          password: input.password
+        });
+
+        if (signInResult.error || !signInResult.data.session || !signInResult.data.user) {
+          throw new Error(
+            'Signup created the user, but no active session is available. In Supabase Auth, disable "Confirm email" for local MVP testing or confirm the user email first.'
+          );
+        }
+
+        user = signInResult.data.user;
+        session = signInResult.data.session;
+      }
+
+      setSessionUserId(session.user.id);
 
       const nextProfile = await createProfile({
         id: user.id,

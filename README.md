@@ -45,6 +45,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 1. Create a Supabase project.
 2. Open SQL Editor and run `supabase/schema.sql`.
 3. In Auth settings, for easier local dev, disable strict email confirmation (or use confirmed test users).
+4. If you already created tables before this timer update, run `supabase/schema.sql` again to add `duration_seconds`.
 
 ## Run the App
 
@@ -78,6 +79,7 @@ npx expo run:android
 - Auth: sign up / log in / log out
 - Home dashboard: daily total, last session, next reminder countdown, quick add
 - Add session: left/right ml, timestamp picker, note
+- Add session timer: start/stop pumping timer (max 2 hours) and save duration
 - History: session list + daily total
 - Settings: reminder interval + enable toggle + units + sync now
 - Family pairing: generate invite code / join by invite code
@@ -95,6 +97,7 @@ npx expo run:android
 - `rightMl`
 - `totalMl` (derived)
 - `note`
+- `durationSeconds` (0..7200)
 - `createdAt`
 - `updatedAt`
 - `userId`

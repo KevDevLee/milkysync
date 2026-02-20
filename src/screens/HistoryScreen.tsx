@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { formatDateTime } from '@/utils/date';
+import { formatPumpDuration } from '@/utils/timer';
 
 export function HistoryScreen(): React.JSX.Element {
   const { sessions, dailyTotalMl } = useAppData();
@@ -27,6 +28,9 @@ export function HistoryScreen(): React.JSX.Element {
             <Text style={styles.itemDetail}>
               L {item.leftMl} ml • R {item.rightMl} ml • {formatDateTime(item.timestamp)}
             </Text>
+            {item.durationSeconds > 0 ? (
+              <Text style={styles.itemDetail}>Duration {formatPumpDuration(item.durationSeconds)}</Text>
+            ) : null}
             {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
           </View>
         )}

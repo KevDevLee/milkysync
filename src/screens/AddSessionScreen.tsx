@@ -1,5 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -16,6 +16,11 @@ import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
+import {
+  formatPumpDuration,
+  getElapsedPumpDurationSeconds,
+  MAX_PUMP_DURATION_SECONDS
+} from '@/utils/timer';
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession } = useAppData();
@@ -25,6 +30,73 @@ export function AddSessionScreen(): React.JSX.Element {
   const [timestamp, setTimestamp] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerStartedAtMs, setTimerStartedAtMs] = useState<number | null>(null);
+  const [timerBaseSeconds, setTimerBaseSeconds] = useState(0);
+  const [nowMs, setNowMs] = useState(Date.now());
+
+  const elapsedDurationSeconds = getElapsedPumpDurationSeconds(
+    timerBaseSeconds,
+    timerRunning ? timerStartedAtMs : null,
+    nowMs
+  );
+
+  useEffect(() => {
+    if (!timerRunning) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [timerRunning]);
+
+  useEffect(() => {
+    if (!timerRunning || elapsedDurationSeconds < MAX_PUMP_DURATION_SECONDS) {
+      return;
+    }
+
+    setTimerRunning(false);
+    setTimerBaseSeconds(MAX_PUMP_DURATION_SECONDS);
+    setTimerStartedAtMs(null);
+  }, [elapsedDurationSeconds, timerRunning]);
+
+  const onStartTimer = (): void => {
+    if (timerRunning) {
+      return;
+    }
+
+    if (timerBaseSeconds >= MAX_PUMP_DURATION_SECONDS) {
+      Alert.alert('Timer limit', 'Maximum duration is 2 hours. Reset to start again.');
+      return;
+    }
+
+    setNowMs(Date.now());
+    setTimerRunning(true);
+    setTimerStartedAtMs(Date.now());
+  };
+
+  const onStopTimer = (): void => {
+    if (!timerRunning) {
+      return;
+    }
+
+    setTimerBaseSeconds(elapsedDurationSeconds);
+    setTimerRunning(false);
+    setTimerStartedAtMs(null);
+  };
+
+  const onResetTimer = (): void => {
+    setTimerRunning(false);
+    setTimerStartedAtMs(null);
+    setTimerBaseSeconds(0);
+    setNowMs(Date.now());
+  };
 
   const onSave = async (): Promise<void> => {
     const leftMl = clampMl(Number(leftMlInput));
@@ -37,16 +109,21 @@ export function AddSessionScreen(): React.JSX.Element {
 
     try {
       setSaving(true);
+      const durationSeconds = elapsedDurationSeconds;
+
       await addSession({
         leftMl,
         rightMl,
+        durationSeconds,
         note: note.trim() || undefined,
         timestamp: timestamp.getTime()
       });
+
       setLeftMlInput('0');
       setRightMlInput('0');
       setNote('');
       setTimestamp(new Date());
+      onResetTimer();
       Alert.alert('Saved', 'Pump session stored locally.');
     } catch (error) {
       Alert.alert('Error', reportError(error, 'Unable to save session right now.'));
@@ -80,6 +157,29 @@ export function AddSessionScreen(): React.JSX.Element {
               style={styles.input}
               accessibilityLabel="Right milk amount in milliliters"
             />
+          </View>
+        </View>
+
+        <Text style={styles.label}>Pumping Timer</Text>
+        <View style={styles.timerCard}>
+          <Text style={styles.timerValue}>{formatPumpDuration(elapsedDurationSeconds)}</Text>
+          <Text style={styles.timerHint}>Max 02:00:00</Text>
+
+          <View style={styles.timerActionsRow}>
+            <Pressable
+              onPress={timerRunning ? onStopTimer : onStartTimer}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.timerButton, pressed && styles.timerPressed]}
+            >
+              <Text style={styles.timerButtonText}>{timerRunning ? 'Stop' : 'Start'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={onResetTimer}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.timerButtonSecondary, pressed && styles.timerPressed]}
+            >
+              <Text style={styles.timerButtonSecondaryText}>Reset</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -164,6 +264,57 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textPrimary,
     justifyContent: 'center'
+  },
+  timerCard: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    padding: 12,
+    gap: 8
+  },
+  timerValue: {
+    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: '700'
+  },
+  timerHint: {
+    color: colors.textSecondary,
+    fontSize: 14
+  },
+  timerActionsRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  timerButton: {
+    minHeight: 48,
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  timerButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  timerButtonSecondary: {
+    minHeight: 48,
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  timerButtonSecondaryText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  timerPressed: {
+    opacity: 0.85
   },
   datetimeButton: {
     alignItems: 'flex-start'

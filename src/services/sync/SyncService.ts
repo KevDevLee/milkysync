@@ -20,6 +20,7 @@ type PumpSessionRow = {
   left_ml: number;
   right_ml: number;
   total_ml: number;
+  duration_seconds?: number;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -35,6 +36,7 @@ function toRemoteSession(session: PumpSession): PumpSessionRow {
     left_ml: session.leftMl,
     right_ml: session.rightMl,
     total_ml: session.totalMl,
+    duration_seconds: session.durationSeconds,
     note: session.note,
     created_at: new Date(session.createdAt).toISOString(),
     updated_at: new Date(session.updatedAt).toISOString(),
@@ -51,6 +53,7 @@ function toLocalSession(row: PumpSessionRow): PumpSession {
     leftMl: row.left_ml,
     rightMl: row.right_ml,
     totalMl: row.total_ml,
+    durationSeconds: row.duration_seconds ?? 0,
     note: row.note,
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),

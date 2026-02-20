@@ -23,6 +23,7 @@ create table if not exists public.pump_sessions (
   left_ml integer not null check (left_ml >= 0),
   right_ml integer not null check (right_ml >= 0),
   total_ml integer not null check (total_ml >= 0),
+  duration_seconds integer not null default 0 check (duration_seconds >= 0 and duration_seconds <= 7200),
   note text,
   created_at timestamptz not null,
   updated_at timestamptz not null,
@@ -30,6 +31,9 @@ create table if not exists public.pump_sessions (
   family_id uuid not null references public.families(id) on delete cascade,
   deleted_at timestamptz
 );
+
+alter table public.pump_sessions
+  add column if not exists duration_seconds integer not null default 0;
 
 create index if not exists idx_pump_sessions_family_updated
   on public.pump_sessions (family_id, updated_at desc);

@@ -11,6 +11,7 @@ type PumpSessionRow = {
   left_ml: number;
   right_ml: number;
   total_ml: number;
+  duration_seconds: number;
   note: string | null;
   created_at: number;
   updated_at: number;
@@ -24,6 +25,7 @@ export type CreatePumpSessionInput = {
   timestamp: number;
   leftMl: number;
   rightMl: number;
+  durationSeconds?: number;
   note?: string | null;
   userId: string;
   familyId: string;
@@ -36,6 +38,7 @@ function mapRow(row: PumpSessionRow): PumpSession {
     leftMl: row.left_ml,
     rightMl: row.right_ml,
     totalMl: row.total_ml,
+    durationSeconds: row.duration_seconds ?? 0,
     note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -55,6 +58,7 @@ export class PumpSessionRepository {
       leftMl: input.leftMl,
       rightMl: input.rightMl,
       totalMl: computeTotalMl(input.leftMl, input.rightMl),
+      durationSeconds: Math.max(0, Math.min(2 * 60 * 60, Math.round(input.durationSeconds ?? 0))),
       note: input.note ?? null,
       createdAt: now,
       updatedAt: now,
@@ -70,6 +74,7 @@ export class PumpSessionRepository {
         left_ml,
         right_ml,
         total_ml,
+        duration_seconds,
         note,
         created_at,
         updated_at,
@@ -77,13 +82,14 @@ export class PumpSessionRepository {
         family_id,
         dirty,
         deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL)
       `,
       session.id,
       session.timestamp,
       session.leftMl,
       session.rightMl,
       session.totalMl,
+      session.durationSeconds,
       session.note,
       session.createdAt,
       session.updatedAt,
@@ -176,6 +182,7 @@ export class PumpSessionRepository {
         left_ml,
         right_ml,
         total_ml,
+        duration_seconds,
         note,
         created_at,
         updated_at,
@@ -183,12 +190,13 @@ export class PumpSessionRepository {
         family_id,
         dirty,
         deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)
       ON CONFLICT(id) DO UPDATE SET
         timestamp = excluded.timestamp,
         left_ml = excluded.left_ml,
         right_ml = excluded.right_ml,
         total_ml = excluded.total_ml,
+        duration_seconds = excluded.duration_seconds,
         note = excluded.note,
         created_at = excluded.created_at,
         updated_at = excluded.updated_at,
@@ -202,6 +210,7 @@ export class PumpSessionRepository {
       session.leftMl,
       session.rightMl,
       session.totalMl,
+      session.durationSeconds,
       session.note,
       session.createdAt,
       session.updatedAt,

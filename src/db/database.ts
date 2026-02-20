@@ -13,6 +13,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       left_ml INTEGER NOT NULL,
       right_ml INTEGER NOT NULL,
       total_ml INTEGER NOT NULL,
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
       note TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -53,6 +54,14 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       value TEXT NOT NULL
     );
   `);
+
+  const pumpSessionColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(pump_sessions);');
+  const hasDurationColumn = pumpSessionColumns.some((column) => column.name === 'duration_seconds');
+  if (!hasDurationColumn) {
+    await db.execAsync(
+      'ALTER TABLE pump_sessions ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0;'
+    );
+  }
 }
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {

@@ -6,6 +6,7 @@ export type PumpSession = {
   leftMl: number;
   rightMl: number;
   totalMl: number;
+  durationSeconds: number;
   note: string | null;
   createdAt: number;
   updatedAt: number;

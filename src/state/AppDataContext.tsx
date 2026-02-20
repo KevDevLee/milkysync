@@ -18,6 +18,7 @@ export type AddSessionInput = {
   rightMl: number;
   note?: string;
   timestamp: number;
+  durationSeconds?: number;
 };
 
 type AppDataContextValue = {
@@ -166,6 +167,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
         timestamp: input.timestamp,
         leftMl: input.leftMl,
         rightMl: input.rightMl,
+        durationSeconds: input.durationSeconds ?? 0,
         note: input.note,
         userId: profile.id,
         familyId

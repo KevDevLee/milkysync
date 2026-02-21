@@ -231,29 +231,6 @@ export function AddSessionScreen(): React.JSX.Element {
       >
         <Text style={styles.title}>Start Pump Session</Text>
 
-        <View style={styles.row}>
-          <View style={styles.fieldHalf}>
-            <Text style={styles.label}>Left (ml)</Text>
-            <TextInput
-              value={leftMlInput}
-              onChangeText={setLeftMlInput}
-              keyboardType="numeric"
-              style={styles.input}
-              accessibilityLabel="Left milk amount in milliliters"
-            />
-          </View>
-          <View style={styles.fieldHalf}>
-            <Text style={styles.label}>Right (ml)</Text>
-            <TextInput
-              value={rightMlInput}
-              onChangeText={setRightMlInput}
-              keyboardType="numeric"
-              style={styles.input}
-              accessibilityLabel="Right milk amount in milliliters"
-            />
-          </View>
-        </View>
-
         <Text style={styles.label}>Duration (minutes)</Text>
         <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
           <ScrollView
@@ -305,6 +282,29 @@ export function AddSessionScreen(): React.JSX.Element {
             >
               <Text style={styles.timerButtonSecondaryText}>Reset</Text>
             </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.fieldHalf}>
+            <Text style={styles.label}>Left (ml)</Text>
+            <TextInput
+              value={leftMlInput}
+              onChangeText={setLeftMlInput}
+              keyboardType="numeric"
+              style={styles.input}
+              accessibilityLabel="Left milk amount in milliliters"
+            />
+          </View>
+          <View style={styles.fieldHalf}>
+            <Text style={styles.label}>Right (ml)</Text>
+            <TextInput
+              value={rightMlInput}
+              onChangeText={setRightMlInput}
+              keyboardType="numeric"
+              style={styles.input}
+              accessibilityLabel="Right milk amount in milliliters"
+            />
           </View>
         </View>
 

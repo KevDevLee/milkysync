@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   NativeScrollEvent,
@@ -163,6 +163,22 @@ export function AddSessionScreen(): React.JSX.Element {
   const displaySeconds = remainingSeconds % 60;
   const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
+  const minuteWheelItems = useMemo(
+    () =>
+      MINUTE_OPTIONS.map((item) => (
+        <View key={item} style={styles.minuteWheelItem}>
+          <Text
+            style={[
+              styles.minuteWheelItemText,
+              wheelMinuteValue === item && styles.minuteWheelItemTextActive
+            ]}
+          >
+            {item}
+          </Text>
+        </View>
+      )),
+    [wheelMinuteValue]
+  );
 
   useEffect(() => {
     if (!timerMinutesLoaded) {
@@ -177,9 +193,9 @@ export function AddSessionScreen(): React.JSX.Element {
     minuteWheelRef.current?.scrollTo({
       x: 0,
       y: minuteIndex * MINUTE_ITEM_HEIGHT,
-      animated: timerRunning
+      animated: false
     });
-  }, [timerMinutesLoaded, timerRunning, wheelMinuteValue]);
+  }, [timerMinutesLoaded, wheelMinuteValue]);
 
   const onStartTimer = (): void => {
     if (timerRunning) {
@@ -289,18 +305,7 @@ export function AddSessionScreen(): React.JSX.Element {
                 }
               }}
             >
-                {MINUTE_OPTIONS.map((item) => (
-                  <View key={item} style={styles.minuteWheelItem}>
-                    <Text
-                      style={[
-                        styles.minuteWheelItemText,
-                        wheelMinuteValue === item && styles.minuteWheelItemTextActive
-                      ]}
-                    >
-                      {item}
-                    </Text>
-                  </View>
-                ))}
+                {minuteWheelItems}
               </ScrollView>
               <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
             </View>

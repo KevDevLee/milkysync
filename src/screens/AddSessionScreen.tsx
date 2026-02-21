@@ -41,6 +41,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [remainingSeconds, setRemainingSeconds] = useState(selectedMinutes * 60);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
+  const [minuteWheelInteracting, setMinuteWheelInteracting] = useState(false);
   const minuteWheelRef = useRef<FlatList<number>>(null);
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export function AddSessionScreen(): React.JSX.Element {
       offset: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
       animated: true
     });
+    setMinuteWheelInteracting(false);
   };
 
   const onStartTimer = (): void => {
@@ -181,7 +183,11 @@ export function AddSessionScreen(): React.JSX.Element {
 
   return (
     <Screen>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.content}
+        scrollEnabled={!minuteWheelInteracting}
+      >
         <Text style={styles.title}>Start Pump Session</Text>
 
         <View style={styles.row}>
@@ -227,8 +233,12 @@ export function AddSessionScreen(): React.JSX.Element {
               offset: MINUTE_ITEM_HEIGHT * index,
               index
             })}
+            onScrollBeginDrag={() => setMinuteWheelInteracting(true)}
             onMomentumScrollEnd={onMinutesScrollEnd}
             onScrollEndDrag={onMinutesScrollEnd}
+            onTouchStart={() => setMinuteWheelInteracting(true)}
+            onTouchEnd={() => setMinuteWheelInteracting(false)}
+            onTouchCancel={() => setMinuteWheelInteracting(false)}
             renderItem={({ item }) => (
               <View style={styles.minuteWheelItem}>
                 <Text

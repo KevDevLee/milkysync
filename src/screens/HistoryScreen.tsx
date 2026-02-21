@@ -19,6 +19,12 @@ type ChartPoint = {
   timestamp: number;
 };
 
+type ChartTick = {
+  key: string;
+  value: number;
+  y: number;
+};
+
 const RANGE_OPTIONS: Array<{ key: TrendRange; label: string }> = [
   { key: 'day', label: 'Day' },
   { key: 'week', label: 'Week' },
@@ -35,6 +41,40 @@ const METRIC_OPTIONS: Array<{ key: TrendMetric; label: string }> = [
 const CHART_HEIGHT = 210;
 const CHART_PAD_X = 14;
 const CHART_PAD_Y = 12;
+
+function getXAxisLabel(range: TrendRange): string {
+  return range === 'day' ? 'Time' : 'Date';
+}
+
+function getNiceAxisStep(maxValue: number): number {
+  if (maxValue <= 5) {
+    return 1;
+  }
+
+  const roughStep = maxValue / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+
+  if (normalized <= 1) {
+    return 1 * magnitude;
+  }
+  if (normalized <= 2) {
+    return 2 * magnitude;
+  }
+  if (normalized <= 5) {
+    return 5 * magnitude;
+  }
+  return 10 * magnitude;
+}
+
+function buildYAxisTicks(axisMax: number): number[] {
+  if (axisMax <= 0) {
+    return [0];
+  }
+
+  const step = axisMax / 4;
+  return [0, 1, 2, 3, 4].map((index) => Math.round(index * step));
+}
 
 function getRangeStart(range: TrendRange, now: number): number {
   if (range === 'day') {
@@ -106,6 +146,7 @@ export function HistoryScreen(): React.JSX.Element {
       return {
         points: [] as ChartPoint[],
         maxValue: 0,
+        yTicks: [] as ChartTick[],
         startLabel: '',
         endLabel: ''
       };
@@ -120,6 +161,8 @@ export function HistoryScreen(): React.JSX.Element {
       1,
       ...chartSessions.map((session) => getMetricValue(session, selectedMetric))
     );
+    const axisStep = getNiceAxisStep(maxValue);
+    const axisMax = Math.max(axisStep * 4, maxValue);
 
     const points = chartSessions.map((session, index) => {
       const value = getMetricValue(session, selectedMetric);
@@ -127,7 +170,7 @@ export function HistoryScreen(): React.JSX.Element {
         chartSessions.length === 1
           ? CHART_PAD_X + plotWidth / 2
           : CHART_PAD_X + ((session.timestamp - firstTimestamp) / timeSpan) * plotWidth;
-      const y = CHART_PAD_Y + (1 - value / maxValue) * plotHeight;
+      const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
       return {
         id: `${session.id}-${index}`,
         x,
@@ -137,9 +180,19 @@ export function HistoryScreen(): React.JSX.Element {
       };
     });
 
+    const yTicks = buildYAxisTicks(axisMax).map((value, index) => {
+      const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
+      return {
+        key: `tick-${index}-${value}`,
+        value,
+        y
+      };
+    });
+
     return {
       points,
       maxValue,
+      yTicks,
       startLabel: formatRangeBoundary(firstTimestamp, selectedRange),
       endLabel: formatRangeBoundary(lastTimestamp, selectedRange)
     };
@@ -245,6 +298,9 @@ export function HistoryScreen(): React.JSX.Element {
               ) : (
                 <>
                   <View style={styles.chartFrame} onLayout={onChartLayout}>
+                    {chartData.yTicks.map((tick) => (
+                      <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />
+                    ))}
                     {chartData.points.slice(1).map((point, index) =>
                       renderSegment(chartData.points[index], point, `segment-${point.id}`)
                     )}
@@ -261,15 +317,21 @@ export function HistoryScreen(): React.JSX.Element {
                         ]}
                       />
                     ))}
+                    {chartData.yTicks.map((tick) => (
+                      <Text key={tick.key} style={[styles.yAxisLabel, { top: tick.y - 7 }]}>
+                        {tick.value}
+                      </Text>
+                    ))}
                   </View>
 
                   <View style={styles.chartAxisRow}>
                     <Text style={styles.axisLabel}>{chartData.startLabel}</Text>
+                    <Text style={styles.axisLabel}>{getXAxisLabel(selectedRange)}</Text>
                     <Text style={styles.axisLabel}>{chartData.endLabel}</Text>
                   </View>
 
                   <Text style={styles.chartMeta}>
-                    Max {Math.round(chartData.maxValue)} ml ({selectedMetric})
+                    Max {Math.round(chartData.maxValue)} ml ({selectedMetric}) • Y axis: ml/session
                   </Text>
                 </>
               )}
@@ -372,6 +434,13 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden'
   },
+  chartGridLine: {
+    position: 'absolute',
+    left: CHART_PAD_X,
+    right: CHART_PAD_X,
+    height: 1,
+    backgroundColor: colors.border
+  },
   chartSegment: {
     position: 'absolute',
     height: 2,
@@ -383,9 +452,17 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 3.5
   },
+  yAxisLabel: {
+    position: 'absolute',
+    left: 4,
+    fontSize: 11,
+    color: colors.textSecondary,
+    backgroundColor: '#f9fcfa'
+  },
   chartAxisRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   axisLabel: {
     color: colors.textSecondary,

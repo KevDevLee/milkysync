@@ -231,35 +231,38 @@ export function AddSessionScreen(): React.JSX.Element {
       >
         <Text style={styles.title}>Start Pump Session</Text>
 
-        <Text style={styles.label}>Duration (minutes)</Text>
-        <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
-          <ScrollView
-            ref={minuteWheelRef}
-            showsVerticalScrollIndicator={false}
-            style={styles.minuteWheel}
-            contentContainerStyle={styles.minuteWheelContent}
-            snapToInterval={MINUTE_ITEM_HEIGHT}
-            decelerationRate="fast"
-            bounces={false}
-            nestedScrollEnabled
-            scrollEnabled={!timerRunning}
-            onMomentumScrollEnd={onMinutesScrollEnd}
-            onScrollEndDrag={onMinutesScrollEnd}
-          >
-            {MINUTE_OPTIONS.map((item) => (
-              <View key={item} style={styles.minuteWheelItem}>
-                <Text
-                  style={[
-                    styles.minuteWheelItemText,
-                    selectedMinutes === item && styles.minuteWheelItemTextActive
-                  ]}
-                >
-                  {item}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-          <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
+        <Text style={styles.label}>Duration</Text>
+        <View style={styles.minutePickerRow}>
+          <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
+            <ScrollView
+              ref={minuteWheelRef}
+              showsVerticalScrollIndicator={false}
+              style={styles.minuteWheel}
+              contentContainerStyle={styles.minuteWheelContent}
+              snapToInterval={MINUTE_ITEM_HEIGHT}
+              decelerationRate="fast"
+              bounces={false}
+              nestedScrollEnabled
+              scrollEnabled={!timerRunning}
+              onMomentumScrollEnd={onMinutesScrollEnd}
+              onScrollEndDrag={onMinutesScrollEnd}
+            >
+              {MINUTE_OPTIONS.map((item) => (
+                <View key={item} style={styles.minuteWheelItem}>
+                  <Text
+                    style={[
+                      styles.minuteWheelItemText,
+                      selectedMinutes === item && styles.minuteWheelItemTextActive
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+            <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
+          </View>
+          <Text style={styles.minuteUnitLabel}>Minutes</Text>
         </View>
 
         <Text style={styles.label}>Countdown</Text>
@@ -391,9 +394,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   minuteWheelContainer: {
-    width: 255,
+    width: 84,
     height: MINUTE_WHEEL_HEIGHT,
-    alignSelf: 'center',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
@@ -403,6 +405,18 @@ const styles = StyleSheet.create({
   },
   minuteWheelDisabled: {
     opacity: 0.65
+  },
+  minutePickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 12,
+    marginLeft: 4
+  },
+  minuteUnitLabel: {
+    color: colors.textPrimary,
+    fontSize: 27,
+    fontWeight: '700'
   },
   minuteWheel: {
     flex: 1

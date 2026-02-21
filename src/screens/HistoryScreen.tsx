@@ -37,8 +37,11 @@ type MetricSeries = {
   points: ChartPoint[];
 };
 
-type DailyTotal = {
-  dayStart: number;
+type TrendSample = {
+  id: string;
+  timestamp: number;
+  leftMl: number;
+  rightMl: number;
   totalMl: number;
 };
 
@@ -127,14 +130,6 @@ function formatRangeBoundary(timestamp: number, range: TrendRange): string {
   }).format(new Date(timestamp));
 }
 
-function formatDailyTotalLabel(dayStart: number, range: TrendRange): string {
-  if (range === 'week') {
-    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date(dayStart));
-    return `${weekday} ${formatShortDate(dayStart)}`;
-  }
-  return formatShortDate(dayStart);
-}
-
 function getRangeBounds(range: TrendRange, now: number, periodOffset: number): RangeBounds {
   if (range === 'all') {
     return { start: Number.NEGATIVE_INFINITY, endExclusive: null };
@@ -154,14 +149,14 @@ function getRangeBounds(range: TrendRange, now: number, periodOffset: number): R
   return { start: monthStart, endExclusive: shiftMonth(monthStart, 1) };
 }
 
-function getMetricValue(session: PumpSession, metric: TrendMetric): number {
+function getMetricValueFromSample(sample: TrendSample, metric: TrendMetric): number {
   if (metric === 'left') {
-    return session.leftMl;
+    return sample.leftMl;
   }
   if (metric === 'right') {
-    return session.rightMl;
+    return sample.rightMl;
   }
-  return session.totalMl;
+  return sample.totalMl;
 }
 
 function getNiceAxisStep(maxValue: number): number {
@@ -229,24 +224,43 @@ export function HistoryScreen(): React.JSX.Element {
     () => [...filteredSessions].sort((a, b) => a.timestamp - b.timestamp),
     [filteredSessions]
   );
+  const trendSamples = useMemo<TrendSample[]>(() => {
+    if (selectedRange === 'week' || selectedRange === 'month') {
+      const byDay = new Map<number, TrendSample>();
 
-  const dailyTotals = useMemo(() => {
-    const byDay = new Map<number, number>();
+      for (const session of chartSessions) {
+        const dayStart = startOfLocalDay(session.timestamp);
+        const existing = byDay.get(dayStart);
 
-    for (const session of filteredSessions) {
-      const dayStart = startOfLocalDay(session.timestamp);
-      byDay.set(dayStart, (byDay.get(dayStart) ?? 0) + session.totalMl);
+        if (existing) {
+          existing.leftMl += session.leftMl;
+          existing.rightMl += session.rightMl;
+          existing.totalMl += session.totalMl;
+        } else {
+          byDay.set(dayStart, {
+            id: `day-${dayStart}`,
+            timestamp: dayStart,
+            leftMl: session.leftMl,
+            rightMl: session.rightMl,
+            totalMl: session.totalMl
+          });
+        }
+      }
+
+      return Array.from(byDay.values()).sort((a, b) => a.timestamp - b.timestamp);
     }
 
-    return Array.from(byDay.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([dayStart, totalMl]) => ({ dayStart, totalMl } satisfies DailyTotal));
-  }, [filteredSessions]);
-
-  const showDailyTotals = selectedRange === 'week' || selectedRange === 'month';
+    return chartSessions.map((session) => ({
+      id: session.id,
+      timestamp: session.timestamp,
+      leftMl: session.leftMl,
+      rightMl: session.rightMl,
+      totalMl: session.totalMl
+    }));
+  }, [chartSessions, selectedRange]);
 
   const chartData = useMemo(() => {
-    if (chartSessions.length === 0) {
+    if (trendSamples.length === 0) {
       return {
         series: METRIC_DEFS.map((metric) => ({ ...metric, points: [] as ChartPoint[] })),
         maxValue: 0,
@@ -259,8 +273,8 @@ export function HistoryScreen(): React.JSX.Element {
       };
     }
 
-    const firstTimestamp = chartSessions[0].timestamp;
-    const lastTimestamp = chartSessions[chartSessions.length - 1].timestamp;
+    const firstTimestamp = trendSamples[0].timestamp;
+    const lastTimestamp = trendSamples[trendSamples.length - 1].timestamp;
     const domainStart = selectedRange === 'all' ? firstTimestamp : rangeBounds.start;
     const domainEndExclusive =
       selectedRange === 'all' ? lastTimestamp + 1 : (rangeBounds.endExclusive ?? lastTimestamp + 1);
@@ -270,11 +284,11 @@ export function HistoryScreen(): React.JSX.Element {
 
     const maxValue = Math.max(
       1,
-      ...chartSessions.map((session) =>
+      ...trendSamples.map((sample) =>
         Math.max(
-          getMetricValue(session, 'left'),
-          getMetricValue(session, 'right'),
-          getMetricValue(session, 'total')
+          getMetricValueFromSample(sample, 'left'),
+          getMetricValueFromSample(sample, 'right'),
+          getMetricValueFromSample(sample, 'total')
         )
       )
     );
@@ -282,19 +296,19 @@ export function HistoryScreen(): React.JSX.Element {
     const axisMax = Math.max(axisStep * 4, maxValue);
 
     const series: MetricSeries[] = METRIC_DEFS.map((metric) => {
-      const points = chartSessions.map((session, index) => {
-        const value = getMetricValue(session, metric.key);
+      const points = trendSamples.map((sample, index) => {
+        const value = getMetricValueFromSample(sample, metric.key);
         const x =
-          chartSessions.length === 1
+          trendSamples.length === 1
             ? CHART_PAD_X + plotWidth / 2
-            : CHART_PAD_X + ((session.timestamp - domainStart) / timeSpan) * plotWidth;
+            : CHART_PAD_X + ((sample.timestamp - domainStart) / timeSpan) * plotWidth;
         const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
         return {
-          id: `${metric.key}-${session.id}-${index}`,
+          id: `${metric.key}-${sample.id}-${index}`,
           x,
           y,
           value,
-          timestamp: session.timestamp
+          timestamp: sample.timestamp
         };
       });
       return { ...metric, points };
@@ -312,7 +326,7 @@ export function HistoryScreen(): React.JSX.Element {
       startLabel: formatRangeBoundary(domainStart, selectedRange),
       endLabel: formatRangeBoundary(domainEndExclusive - 1, selectedRange)
     };
-  }, [chartSessions, chartWidth, rangeBounds.endExclusive, rangeBounds.start, selectedRange]);
+  }, [chartWidth, rangeBounds.endExclusive, rangeBounds.start, selectedRange, trendSamples]);
 
   const onChartLayout = (event: LayoutChangeEvent): void => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
@@ -435,7 +449,7 @@ export function HistoryScreen(): React.JSX.Element {
                 ))}
               </View>
 
-              {chartSessions.length === 0 ? (
+              {trendSamples.length === 0 ? (
                 <Text style={styles.chartEmpty}>No sessions in this timeframe yet.</Text>
               ) : (
                 <>
@@ -482,26 +496,6 @@ export function HistoryScreen(): React.JSX.Element {
                   <Text style={styles.chartMeta}>
                     Max {Math.round(chartData.maxValue)} ml • Y axis: ml/session
                   </Text>
-
-                  {showDailyTotals ? (
-                    <View style={styles.dailyTotalsSection}>
-                      <Text style={styles.dailyTotalsTitle}>Daily totals</Text>
-                      {dailyTotals.length === 0 ? (
-                        <Text style={styles.dailyTotalsEmpty}>No daily totals yet in this range.</Text>
-                      ) : (
-                        <View style={styles.dailyTotalsGrid}>
-                          {dailyTotals.map((row) => (
-                            <View key={`daily-${row.dayStart}`} style={styles.dailyTotalCard}>
-                              <Text style={styles.dailyTotalDate}>
-                                {formatDailyTotalLabel(row.dayStart, selectedRange)}
-                              </Text>
-                              <Text style={styles.dailyTotalValue}>{row.totalMl} ml</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  ) : null}
                 </>
               )}
             </View>
@@ -694,44 +688,6 @@ const styles = StyleSheet.create({
   chartMeta: {
     color: colors.textSecondary,
     fontSize: 13
-  },
-  dailyTotalsSection: {
-    marginTop: 4,
-    gap: 8
-  },
-  dailyTotalsTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700'
-  },
-  dailyTotalsEmpty: {
-    color: colors.textSecondary,
-    fontSize: 13
-  },
-  dailyTotalsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8
-  },
-  dailyTotalCard: {
-    minWidth: 130,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: '#f9fcfa',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 2
-  },
-  dailyTotalDate: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  dailyTotalValue: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700'
   },
   listHeading: {
     color: colors.textPrimary,

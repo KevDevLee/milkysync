@@ -21,12 +21,16 @@ import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
 
-const MINUTE_OPTIONS = Array.from({ length: 121 }, (_, index) => index);
+const MIN_SELECTABLE_MINUTES = 1;
+const MAX_SELECTABLE_MINUTES = 120;
+const MINUTE_OPTIONS = Array.from(
+  { length: MAX_SELECTABLE_MINUTES - MIN_SELECTABLE_MINUTES + 1 },
+  (_, index) => index + MIN_SELECTABLE_MINUTES
+);
 const MINUTE_ITEM_HEIGHT = 72;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
-const MIN_SELECTABLE_MINUTES = 1;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
@@ -89,7 +93,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const getNearestMinuteIndex = (offsetY: number): number => {
     const roughIndex = Math.round(offsetY / MINUTE_ITEM_HEIGHT);
-    return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
+    return Math.max(0, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
   };
 
   const onMinutesScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -115,6 +119,7 @@ export function AddSessionScreen(): React.JSX.Element {
         if (
           Number.isFinite(parsed) &&
           parsed >= MIN_SELECTABLE_MINUTES &&
+          parsed <= MAX_SELECTABLE_MINUTES &&
           MINUTE_OPTIONS.includes(parsed)
         ) {
           minutes = parsed;

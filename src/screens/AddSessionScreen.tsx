@@ -47,14 +47,10 @@ export function AddSessionScreen(): React.JSX.Element {
   const minuteWheelRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (timerRunning) {
-      return;
-    }
-
     const nextTarget = selectedMinutes * 60;
     setTargetDurationSeconds(nextTarget);
     setRemainingSeconds(nextTarget);
-  }, [selectedMinutes, timerRunning]);
+  }, [selectedMinutes]);
 
   useEffect(() => {
     if (!timerRunning || countdownStartedAtMs === null) {

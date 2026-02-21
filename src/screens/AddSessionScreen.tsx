@@ -248,6 +248,11 @@ export function AddSessionScreen(): React.JSX.Element {
     }
   };
 
+  const sessionTimeDisplay = `${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  })}`;
+
   return (
     <Screen>
       <ScrollView
@@ -342,7 +347,7 @@ export function AddSessionScreen(): React.JSX.Element {
           accessibilityRole="button"
           style={({ pressed }) => [styles.input, styles.datetimeButton, pressed && styles.datetimePressed]}
         >
-          <Text style={styles.datetimeText}>{timestamp.toLocaleString()}</Text>
+          <Text style={styles.datetimeText}>{sessionTimeDisplay}</Text>
         </Pressable>
 
         {showPicker && (

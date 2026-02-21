@@ -1,7 +1,10 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +22,10 @@ import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
-const MINUTE_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 105, 120];
+const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
+const MINUTE_ITEM_HEIGHT = 44;
+const MINUTE_WHEEL_VISIBLE_ROWS = 5;
+const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession } = useAppData();
@@ -35,6 +41,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [remainingSeconds, setRemainingSeconds] = useState(selectedMinutes * 60);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
+  const minuteWheelRef = useRef<FlatList<number>>(null);
 
   useEffect(() => {
     if (timerRunning) {
@@ -76,6 +83,27 @@ export function AddSessionScreen(): React.JSX.Element {
 
     const elapsedSeconds = Math.floor((Date.now() - countdownStartedAtMs) / 1000);
     return Math.max(targetDurationSeconds - elapsedSeconds, 0);
+  };
+
+  const getNearestMinuteIndex = (offsetY: number): number => {
+    const roughIndex = Math.round(offsetY / MINUTE_ITEM_HEIGHT);
+    return Math.max(0, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
+  };
+
+  const onMinutesScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    if (timerRunning) {
+      return;
+    }
+
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const nextMinuteIndex = getNearestMinuteIndex(offsetY);
+    const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
+    setSelectedMinutes(nextMinutes);
+
+    minuteWheelRef.current?.scrollToOffset({
+      offset: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
+      animated: true
+    });
   };
 
   const onStartTimer = (): void => {
@@ -180,32 +208,47 @@ export function AddSessionScreen(): React.JSX.Element {
         </View>
 
         <Text style={styles.label}>Duration (minutes)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.minutesRow}>
-          {MINUTE_OPTIONS.map((minutes) => (
-            <Pressable
-              key={minutes}
-              onPress={() => setSelectedMinutes(minutes)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set duration to ${minutes} minutes`}
-              style={({ pressed }) => [
-                styles.minuteChip,
-                selectedMinutes === minutes && styles.minuteChipActive,
-                pressed && styles.minuteChipPressed
-              ]}
-            >
-              <Text
-                style={[styles.minuteChipText, selectedMinutes === minutes && styles.minuteChipTextActive]}
-              >
-                {minutes}m
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
+          <FlatList
+            ref={minuteWheelRef}
+            data={MINUTE_OPTIONS}
+            keyExtractor={(item) => String(item)}
+            showsVerticalScrollIndicator={false}
+            style={styles.minuteWheel}
+            contentContainerStyle={styles.minuteWheelContent}
+            snapToInterval={MINUTE_ITEM_HEIGHT}
+            decelerationRate="fast"
+            bounces={false}
+            nestedScrollEnabled
+            scrollEnabled={!timerRunning}
+            initialScrollIndex={MINUTE_OPTIONS.indexOf(selectedMinutes)}
+            getItemLayout={(_, index) => ({
+              length: MINUTE_ITEM_HEIGHT,
+              offset: MINUTE_ITEM_HEIGHT * index,
+              index
+            })}
+            onMomentumScrollEnd={onMinutesScrollEnd}
+            onScrollEndDrag={onMinutesScrollEnd}
+            renderItem={({ item }) => (
+              <View style={styles.minuteWheelItem}>
+                <Text
+                  style={[
+                    styles.minuteWheelItemText,
+                    selectedMinutes === item && styles.minuteWheelItemTextActive
+                  ]}
+                >
+                  {item} min
+                </Text>
+              </View>
+            )}
+          />
+          <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
+        </View>
 
         <Text style={styles.label}>Countdown</Text>
         <View style={styles.timerCard}>
           <Text style={styles.timerValue}>{formatPumpDuration(remainingSeconds)}</Text>
-          <Text style={styles.timerHint}>A short signal plays when timer reaches 00:00.</Text>
+          <Text style={styles.timerHint}>Scroll up/down to set minutes. Signal plays at 00:00.</Text>
 
           <View style={styles.timerActionsRow}>
             <Pressable
@@ -307,35 +350,47 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     justifyContent: 'center'
   },
-  minutesRow: {
-    gap: 8,
-    paddingVertical: 2
-  },
-  minuteChip: {
-    minHeight: 42,
-    minWidth: 64,
-    borderRadius: 999,
+  minuteWheelContainer: {
+    height: MINUTE_WHEEL_HEIGHT,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  minuteWheelDisabled: {
+    opacity: 0.65
+  },
+  minuteWheel: {
+    flex: 1
+  },
+  minuteWheelContent: {
+    paddingVertical: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2
+  },
+  minuteWheelItem: {
+    height: MINUTE_ITEM_HEIGHT,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12
+    justifyContent: 'center'
   },
-  minuteChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
+  minuteWheelItemText: {
+    color: colors.textSecondary,
+    fontSize: 18,
+    fontWeight: '600'
   },
-  minuteChipPressed: {
-    opacity: 0.85
-  },
-  minuteChipText: {
+  minuteWheelItemTextActive: {
     color: colors.textPrimary,
-    fontSize: 15,
     fontWeight: '700'
   },
-  minuteChipTextActive: {
-    color: '#fff'
+  minuteWheelCenterMarker: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
+    height: MINUTE_ITEM_HEIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   timerCard: {
     borderColor: colors.border,

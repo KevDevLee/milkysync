@@ -2,7 +2,6 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -42,7 +41,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
   const [minuteWheelInteracting, setMinuteWheelInteracting] = useState(false);
-  const minuteWheelRef = useRef<FlatList<number>>(null);
+  const minuteWheelRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (timerRunning) {
@@ -101,12 +100,20 @@ export function AddSessionScreen(): React.JSX.Element {
     const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
     setSelectedMinutes(nextMinutes);
 
-    minuteWheelRef.current?.scrollToOffset({
-      offset: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
+    minuteWheelRef.current?.scrollTo({
+      x: 0,
+      y: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
       animated: true
     });
     setMinuteWheelInteracting(false);
   };
+
+  useEffect(() => {
+    const initialOffset = MINUTE_OPTIONS.indexOf(selectedMinutes) * MINUTE_ITEM_HEIGHT;
+    minuteWheelRef.current?.scrollTo({ x: 0, y: initialOffset, animated: false });
+    // Only initial alignment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onStartTimer = (): void => {
     if (timerRunning) {
@@ -215,10 +222,8 @@ export function AddSessionScreen(): React.JSX.Element {
 
         <Text style={styles.label}>Duration (minutes)</Text>
         <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
-          <FlatList
+          <ScrollView
             ref={minuteWheelRef}
-            data={MINUTE_OPTIONS}
-            keyExtractor={(item) => String(item)}
             showsVerticalScrollIndicator={false}
             style={styles.minuteWheel}
             contentContainerStyle={styles.minuteWheelContent}
@@ -227,20 +232,15 @@ export function AddSessionScreen(): React.JSX.Element {
             bounces={false}
             nestedScrollEnabled
             scrollEnabled={!timerRunning}
-            initialScrollIndex={MINUTE_OPTIONS.indexOf(selectedMinutes)}
-            getItemLayout={(_, index) => ({
-              length: MINUTE_ITEM_HEIGHT,
-              offset: MINUTE_ITEM_HEIGHT * index,
-              index
-            })}
             onScrollBeginDrag={() => setMinuteWheelInteracting(true)}
             onMomentumScrollEnd={onMinutesScrollEnd}
             onScrollEndDrag={onMinutesScrollEnd}
             onTouchStart={() => setMinuteWheelInteracting(true)}
             onTouchEnd={() => setMinuteWheelInteracting(false)}
             onTouchCancel={() => setMinuteWheelInteracting(false)}
-            renderItem={({ item }) => (
-              <View style={styles.minuteWheelItem}>
+          >
+            {MINUTE_OPTIONS.map((item) => (
+              <View key={item} style={styles.minuteWheelItem}>
                 <Text
                   style={[
                     styles.minuteWheelItemText,
@@ -250,8 +250,8 @@ export function AddSessionScreen(): React.JSX.Element {
                   {item}
                 </Text>
               </View>
-            )}
-          />
+            ))}
+          </ScrollView>
           <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
         </View>
 

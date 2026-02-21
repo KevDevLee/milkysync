@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   minuteUnitLabel: {
     color: colors.textPrimary,
-    fontSize: 54,
+    fontSize: 42,
     fontWeight: '700'
   },
   minuteWheel: {

@@ -158,7 +158,8 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
-  const wheelMinuteValue = timerRunning ? displayMinutes : selectedMinutes;
+  const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
+  const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
 
   useEffect(() => {
     if (!timerMinutesLoaded) {

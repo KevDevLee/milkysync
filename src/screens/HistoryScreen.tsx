@@ -37,6 +37,11 @@ type MetricSeries = {
   points: ChartPoint[];
 };
 
+type DailyTotal = {
+  dayStart: number;
+  totalMl: number;
+};
+
 const RANGE_OPTIONS: Array<{ key: TrendRange; label: string }> = [
   { key: 'day', label: 'Day' },
   { key: 'week', label: 'Week' },
@@ -120,6 +125,14 @@ function formatRangeBoundary(timestamp: number, range: TrendRange): string {
     month: 'short',
     day: 'numeric'
   }).format(new Date(timestamp));
+}
+
+function formatDailyTotalLabel(dayStart: number, range: TrendRange): string {
+  if (range === 'week') {
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date(dayStart));
+    return `${weekday} ${formatShortDate(dayStart)}`;
+  }
+  return formatShortDate(dayStart);
 }
 
 function getRangeBounds(range: TrendRange, now: number, periodOffset: number): RangeBounds {
@@ -216,6 +229,21 @@ export function HistoryScreen(): React.JSX.Element {
     () => [...filteredSessions].sort((a, b) => a.timestamp - b.timestamp),
     [filteredSessions]
   );
+
+  const dailyTotals = useMemo(() => {
+    const byDay = new Map<number, number>();
+
+    for (const session of filteredSessions) {
+      const dayStart = startOfLocalDay(session.timestamp);
+      byDay.set(dayStart, (byDay.get(dayStart) ?? 0) + session.totalMl);
+    }
+
+    return Array.from(byDay.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([dayStart, totalMl]) => ({ dayStart, totalMl } satisfies DailyTotal));
+  }, [filteredSessions]);
+
+  const showDailyTotals = selectedRange === 'week' || selectedRange === 'month';
 
   const chartData = useMemo(() => {
     if (chartSessions.length === 0) {
@@ -454,6 +482,26 @@ export function HistoryScreen(): React.JSX.Element {
                   <Text style={styles.chartMeta}>
                     Max {Math.round(chartData.maxValue)} ml • Y axis: ml/session
                   </Text>
+
+                  {showDailyTotals ? (
+                    <View style={styles.dailyTotalsSection}>
+                      <Text style={styles.dailyTotalsTitle}>Daily totals</Text>
+                      {dailyTotals.length === 0 ? (
+                        <Text style={styles.dailyTotalsEmpty}>No daily totals yet in this range.</Text>
+                      ) : (
+                        <View style={styles.dailyTotalsGrid}>
+                          {dailyTotals.map((row) => (
+                            <View key={`daily-${row.dayStart}`} style={styles.dailyTotalCard}>
+                              <Text style={styles.dailyTotalDate}>
+                                {formatDailyTotalLabel(row.dayStart, selectedRange)}
+                              </Text>
+                              <Text style={styles.dailyTotalValue}>{row.totalMl} ml</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ) : null}
                 </>
               )}
             </View>
@@ -646,6 +694,44 @@ const styles = StyleSheet.create({
   chartMeta: {
     color: colors.textSecondary,
     fontSize: 13
+  },
+  dailyTotalsSection: {
+    marginTop: 4,
+    gap: 8
+  },
+  dailyTotalsTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  dailyTotalsEmpty: {
+    color: colors.textSecondary,
+    fontSize: 13
+  },
+  dailyTotalsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  dailyTotalCard: {
+    minWidth: 130,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: '#f9fcfa',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2
+  },
+  dailyTotalDate: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  dailyTotalValue: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700'
   },
   listHeading: {
     color: colors.textPrimary,

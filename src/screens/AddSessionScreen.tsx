@@ -394,7 +394,9 @@ const styles = StyleSheet.create({
     top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
     height: MINUTE_ITEM_HEIGHT,
     borderRadius: 10,
-    backgroundColor: '#ecf4f1'
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'transparent'
   },
   timerCard: {
     borderColor: colors.border,

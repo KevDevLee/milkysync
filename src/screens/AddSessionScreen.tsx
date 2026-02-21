@@ -40,7 +40,6 @@ export function AddSessionScreen(): React.JSX.Element {
   const [remainingSeconds, setRemainingSeconds] = useState(selectedMinutes * 60);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
-  const [minuteWheelInteracting, setMinuteWheelInteracting] = useState(false);
   const minuteWheelRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -99,13 +98,6 @@ export function AddSessionScreen(): React.JSX.Element {
     const nextMinuteIndex = getNearestMinuteIndex(offsetY);
     const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
     setSelectedMinutes(nextMinutes);
-
-    minuteWheelRef.current?.scrollTo({
-      x: 0,
-      y: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
-      animated: true
-    });
-    setMinuteWheelInteracting(false);
   };
 
   useEffect(() => {
@@ -114,20 +106,6 @@ export function AddSessionScreen(): React.JSX.Element {
     // Only initial alignment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!minuteWheelInteracting) {
-      return;
-    }
-
-    const unlockTimer = setTimeout(() => {
-      setMinuteWheelInteracting(false);
-    }, 1200);
-
-    return () => {
-      clearTimeout(unlockTimer);
-    };
-  }, [minuteWheelInteracting]);
 
   const onStartTimer = (): void => {
     if (timerRunning) {
@@ -207,7 +185,6 @@ export function AddSessionScreen(): React.JSX.Element {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
-        scrollEnabled={!minuteWheelInteracting}
       >
         <Text style={styles.title}>Start Pump Session</Text>
 
@@ -246,12 +223,8 @@ export function AddSessionScreen(): React.JSX.Element {
             bounces={false}
             nestedScrollEnabled
             scrollEnabled={!timerRunning}
-            onScrollBeginDrag={() => setMinuteWheelInteracting(true)}
             onMomentumScrollEnd={onMinutesScrollEnd}
             onScrollEndDrag={onMinutesScrollEnd}
-            onTouchStart={() => setMinuteWheelInteracting(true)}
-            onTouchEnd={() => setMinuteWheelInteracting(false)}
-            onTouchCancel={() => setMinuteWheelInteracting(false)}
           >
             {MINUTE_OPTIONS.map((item) => (
               <View key={item} style={styles.minuteWheelItem}>

@@ -10,6 +10,10 @@ import { PumpSession } from '@/types/models';
 
 type TrendRange = 'day' | 'week' | 'month' | 'all';
 type TrendMetric = 'left' | 'right' | 'total';
+type RangeBounds = {
+  start: number;
+  endExclusive: number | null;
+};
 
 type ChartPoint = {
   id: string;
@@ -41,6 +45,7 @@ const METRIC_OPTIONS: Array<{ key: TrendMetric; label: string }> = [
 const CHART_HEIGHT = 210;
 const CHART_PAD_X = 14;
 const CHART_PAD_Y = 12;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function getXAxisLabel(range: TrendRange): string {
   return range === 'day' ? 'Time' : 'Date';
@@ -76,17 +81,28 @@ function buildYAxisTicks(axisMax: number): number[] {
   return [0, 1, 2, 3, 4].map((index) => Math.round(index * step));
 }
 
-function getRangeStart(range: TrendRange, now: number): number {
+function startOfLocalWeekMonday(timestamp: number): number {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  const day = date.getDay();
+  const diffToMonday = (day + 6) % 7;
+  date.setDate(date.getDate() - diffToMonday);
+  return date.getTime();
+}
+
+function getRangeBounds(range: TrendRange, now: number): RangeBounds {
   if (range === 'day') {
-    return startOfLocalDay(now);
+    const start = startOfLocalDay(now);
+    return { start, endExclusive: start + ONE_DAY_MS };
   }
   if (range === 'week') {
-    return now - 7 * 24 * 60 * 60 * 1000;
+    const start = startOfLocalWeekMonday(now);
+    return { start, endExclusive: start + 7 * ONE_DAY_MS };
   }
   if (range === 'month') {
-    return now - 30 * 24 * 60 * 60 * 1000;
+    return { start: now - 30 * ONE_DAY_MS, endExclusive: now + 1 };
   }
-  return Number.NEGATIVE_INFINITY;
+  return { start: Number.NEGATIVE_INFINITY, endExclusive: null };
 }
 
 function getMetricValue(session: PumpSession, metric: TrendMetric): number {
@@ -115,11 +131,19 @@ export function HistoryScreen(): React.JSX.Element {
   const [selectedMetric, setSelectedMetric] = useState<TrendMetric>('total');
   const [chartWidth, setChartWidth] = useState(0);
 
+  const rangeBounds = useMemo(() => getRangeBounds(selectedRange, Date.now()), [selectedRange]);
+
   const filteredSessions = useMemo(() => {
-    const now = Date.now();
-    const rangeStart = getRangeStart(selectedRange, now);
-    return sessions.filter((session) => session.timestamp >= rangeStart);
-  }, [selectedRange, sessions]);
+    return sessions.filter((session) => {
+      if (session.timestamp < rangeBounds.start) {
+        return false;
+      }
+      if (rangeBounds.endExclusive !== null && session.timestamp >= rangeBounds.endExclusive) {
+        return false;
+      }
+      return true;
+    });
+  }, [rangeBounds.endExclusive, rangeBounds.start, sessions]);
 
   const listSessions = useMemo(
     () => [...filteredSessions].sort((a, b) => b.timestamp - a.timestamp),
@@ -154,7 +178,10 @@ export function HistoryScreen(): React.JSX.Element {
 
     const firstTimestamp = chartSessions[0].timestamp;
     const lastTimestamp = chartSessions[chartSessions.length - 1].timestamp;
-    const timeSpan = Math.max(lastTimestamp - firstTimestamp, 1);
+    const domainStart = selectedRange === 'all' ? firstTimestamp : rangeBounds.start;
+    const domainEndExclusive =
+      selectedRange === 'all' ? lastTimestamp + 1 : (rangeBounds.endExclusive ?? lastTimestamp + 1);
+    const timeSpan = Math.max(domainEndExclusive - domainStart, 1);
     const plotWidth = Math.max(chartWidth - CHART_PAD_X * 2, 1);
     const plotHeight = CHART_HEIGHT - CHART_PAD_Y * 2;
     const maxValue = Math.max(
@@ -169,7 +196,7 @@ export function HistoryScreen(): React.JSX.Element {
       const x =
         chartSessions.length === 1
           ? CHART_PAD_X + plotWidth / 2
-          : CHART_PAD_X + ((session.timestamp - firstTimestamp) / timeSpan) * plotWidth;
+          : CHART_PAD_X + ((session.timestamp - domainStart) / timeSpan) * plotWidth;
       const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
       return {
         id: `${session.id}-${index}`,
@@ -193,10 +220,10 @@ export function HistoryScreen(): React.JSX.Element {
       points,
       maxValue,
       yTicks,
-      startLabel: formatRangeBoundary(firstTimestamp, selectedRange),
-      endLabel: formatRangeBoundary(lastTimestamp, selectedRange)
+      startLabel: formatRangeBoundary(domainStart, selectedRange),
+      endLabel: formatRangeBoundary(domainEndExclusive - 1, selectedRange)
     };
-  }, [chartSessions, chartWidth, selectedMetric, selectedRange]);
+  }, [chartSessions, chartWidth, rangeBounds.endExclusive, rangeBounds.start, selectedMetric, selectedRange]);
 
   const onChartLayout = (event: LayoutChangeEvent): void => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);

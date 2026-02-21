@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   NativeScrollEvent,
@@ -45,6 +45,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
   const minuteWheelRef = useRef<ScrollView>(null);
+  const minuteWheelMomentumRef = useRef(false);
 
   useEffect(() => {
     const nextTarget = selectedMinutes * 60;
@@ -89,7 +90,7 @@ export function AddSessionScreen(): React.JSX.Element {
     return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
   };
 
-  const onMinutesScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+  const onMinutesScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
     if (timerRunning) {
       return;
     }
@@ -98,12 +99,14 @@ export function AddSessionScreen(): React.JSX.Element {
     const nextMinuteIndex = getNearestMinuteIndex(offsetY);
     const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
     setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
-    minuteWheelRef.current?.scrollTo({
-      x: 0,
-      y: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
-      animated: true
-    });
-  };
+    if (nextMinuteIndex === MIN_SELECTABLE_MINUTES) {
+      minuteWheelRef.current?.scrollTo({
+        x: 0,
+        y: MIN_SELECTABLE_MINUTES * MINUTE_ITEM_HEIGHT,
+        animated: false
+      });
+    }
+  }, [selectedMinutes, timerRunning]);
 
   useEffect(() => {
     let active = true;
@@ -271,11 +274,21 @@ export function AddSessionScreen(): React.JSX.Element {
                 snapToInterval={MINUTE_ITEM_HEIGHT}
                 decelerationRate="fast"
                 bounces={false}
-                nestedScrollEnabled
-                scrollEnabled={!timerRunning}
-                onMomentumScrollEnd={onMinutesScrollEnd}
-                onScrollEndDrag={onMinutesScrollEnd}
-              >
+              nestedScrollEnabled
+              scrollEnabled={!timerRunning}
+              onScrollBeginDrag={() => {
+                minuteWheelMomentumRef.current = false;
+              }}
+              onMomentumScrollBegin={() => {
+                minuteWheelMomentumRef.current = true;
+              }}
+              onMomentumScrollEnd={onMinutesScrollEnd}
+              onScrollEndDrag={(event) => {
+                if (!minuteWheelMomentumRef.current) {
+                  onMinutesScrollEnd(event);
+                }
+              }}
+            >
                 {MINUTE_OPTIONS.map((item) => (
                   <View key={item} style={styles.minuteWheelItem}>
                     <Text
@@ -483,7 +496,8 @@ const styles = StyleSheet.create({
   secondsValue: {
     color: colors.textPrimary,
     fontSize: 54,
-    fontWeight: '700'
+    fontWeight: '700',
+    fontVariant: ['tabular-nums']
   },
   minuteWheel: {
     flex: 1
@@ -500,13 +514,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 42,
     fontWeight: '600',
-    opacity: 0.55
+    opacity: 0.55,
+    fontVariant: ['tabular-nums']
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 54,
-    opacity: 1
+    opacity: 1,
+    fontVariant: ['tabular-nums']
   },
   minuteWheelCenterMarker: {
     position: 'absolute',

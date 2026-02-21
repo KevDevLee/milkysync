@@ -1,4 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,6 +26,8 @@ const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
 const MINUTE_ITEM_HEIGHT = 30;
 const MINUTE_WHEEL_VISIBLE_ROWS = 3;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
+const DEFAULT_TIMER_MINUTES = 15;
+const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession } = useAppData();
@@ -35,9 +38,10 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [selectedMinutes, setSelectedMinutes] = useState(20);
-  const [targetDurationSeconds, setTargetDurationSeconds] = useState(selectedMinutes * 60);
-  const [remainingSeconds, setRemainingSeconds] = useState(selectedMinutes * 60);
+  const [selectedMinutes, setSelectedMinutes] = useState(DEFAULT_TIMER_MINUTES);
+  const [targetDurationSeconds, setTargetDurationSeconds] = useState(DEFAULT_TIMER_MINUTES * 60);
+  const [remainingSeconds, setRemainingSeconds] = useState(DEFAULT_TIMER_MINUTES * 60);
+  const [timerMinutesLoaded, setTimerMinutesLoaded] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
   const minuteWheelRef = useRef<ScrollView>(null);
@@ -101,11 +105,50 @@ export function AddSessionScreen(): React.JSX.Element {
   };
 
   useEffect(() => {
-    const initialOffset = MINUTE_OPTIONS.indexOf(selectedMinutes) * MINUTE_ITEM_HEIGHT;
-    minuteWheelRef.current?.scrollTo({ x: 0, y: initialOffset, animated: false });
-    // Only initial alignment.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+
+    const loadLastTimerMinutes = async (): Promise<void> => {
+      let minutes = DEFAULT_TIMER_MINUTES;
+
+      try {
+        const rawValue = await AsyncStorage.getItem(LAST_TIMER_MINUTES_STORAGE_KEY);
+        const parsed = rawValue ? Number.parseInt(rawValue, 10) : Number.NaN;
+        if (Number.isFinite(parsed) && MINUTE_OPTIONS.includes(parsed)) {
+          minutes = parsed;
+        }
+      } catch (error) {
+        console.warn('Failed to load last timer minutes.', error);
+      }
+
+      if (!active) {
+        return;
+      }
+
+      setSelectedMinutes(minutes);
+      minuteWheelRef.current?.scrollTo({
+        x: 0,
+        y: MINUTE_OPTIONS.indexOf(minutes) * MINUTE_ITEM_HEIGHT,
+        animated: false
+      });
+      setTimerMinutesLoaded(true);
+    };
+
+    void loadLastTimerMinutes();
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!timerMinutesLoaded) {
+      return;
+    }
+
+    void AsyncStorage.setItem(LAST_TIMER_MINUTES_STORAGE_KEY, String(selectedMinutes)).catch((error) => {
+      console.warn('Failed to save last timer minutes.', error);
+    });
+  }, [selectedMinutes, timerMinutesLoaded]);
 
   const onStartTimer = (): void => {
     if (timerRunning) {

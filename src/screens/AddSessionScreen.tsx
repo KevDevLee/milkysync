@@ -23,7 +23,7 @@ import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
-const MINUTE_ITEM_HEIGHT = 36;
+const MINUTE_ITEM_HEIGHT = 72;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
@@ -232,7 +232,7 @@ export function AddSessionScreen(): React.JSX.Element {
         <Text style={styles.title}>Start Pump Session</Text>
 
         <Text style={styles.label}>Duration</Text>
-        <View style={styles.minutePickerRow}>
+        <View style={styles.minutePickerGroup}>
           <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
             <ScrollView
               ref={minuteWheelRef}
@@ -394,9 +394,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   minuteWheelContainer: {
-    width: 84,
+    width: 168,
     height: MINUTE_WHEEL_HEIGHT,
-    borderRadius: 18,
+    borderRadius: 36,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -406,16 +406,14 @@ const styles = StyleSheet.create({
   minuteWheelDisabled: {
     opacity: 0.65
   },
-  minutePickerRow: {
-    flexDirection: 'row',
+  minutePickerGroup: {
     alignItems: 'center',
     alignSelf: 'center',
-    gap: 12,
-    justifyContent: 'center'
+    gap: 10
   },
   minuteUnitLabel: {
     color: colors.textPrimary,
-    fontSize: 27,
+    fontSize: 54,
     fontWeight: '700'
   },
   minuteWheel: {
@@ -431,23 +429,23 @@ const styles = StyleSheet.create({
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 21,
+    fontSize: 42,
     fontWeight: '600',
     opacity: 0.55
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
-    fontSize: 27,
+    fontSize: 54,
     opacity: 1
   },
   minuteWheelCenterMarker: {
     position: 'absolute',
-    left: 9,
-    right: 9,
+    left: 18,
+    right: 18,
     top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
     height: MINUTE_ITEM_HEIGHT,
-    borderRadius: 15,
+    borderRadius: 30,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent'

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +26,7 @@ export function AuthScreen(): React.JSX.Element {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<UserRole>('mother');
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async (): Promise<void> => {
     if (!email || !password) {
@@ -125,13 +127,28 @@ export function AuthScreen(): React.JSX.Element {
         autoCapitalize="none"
         style={styles.input}
       />
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
-        style={styles.input}
-      />
+      <View style={styles.passwordWrapper}>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          secureTextEntry={!showPassword}
+          style={styles.passwordInput}
+        />
+        <Pressable
+          onPress={() => setShowPassword((current) => !current)}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          hitSlop={8}
+          style={({ pressed }) => [styles.passwordToggle, pressed && styles.passwordTogglePressed]}
+        >
+          <Ionicons
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            size={20}
+            color={colors.textSecondary}
+          />
+        </Pressable>
+      </View>
 
       {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
 
@@ -205,6 +222,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
     color: colors.textPrimary
+  },
+  passwordWrapper: {
+    minHeight: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 8
+  },
+  passwordInput: {
+    flex: 1,
+    minHeight: 50,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: colors.textPrimary
+  },
+  passwordToggle: {
+    minWidth: 40,
+    minHeight: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  passwordTogglePressed: {
+    opacity: 0.75
   },
   roleRow: {
     flexDirection: 'row',

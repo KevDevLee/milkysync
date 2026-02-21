@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
+import { AppTabsParamList } from '@/navigation/types';
 import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
-import { reportError } from '@/utils/error';
 import { computeNextReminderTimestamp } from '@/utils/reminder';
 
 export function DashboardScreen(): React.JSX.Element {
-  const { sessions, dailyTotalMl, addSession, reminderSettings } = useAppData();
-  const [submitting, setSubmitting] = useState(false);
+  const { sessions, dailyTotalMl, reminderSettings } = useAppData();
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabsParamList>>();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -32,25 +34,6 @@ export function DashboardScreen(): React.JSX.Element {
   const nextReminderLabel = reminderSettings.enabled
     ? formatRelativeDuration(nextReminderAt, now)
     : 'Reminders disabled';
-
-  const onQuickAdd = async (): Promise<void> => {
-    if (submitting) return;
-
-    try {
-      setSubmitting(true);
-      await addSession({
-        leftMl: 30,
-        rightMl: 30,
-        timestamp: Date.now(),
-        note: 'Quick add'
-      });
-      Alert.alert('Saved', 'Quick session added.');
-    } catch (error) {
-      Alert.alert('Error', reportError(error, 'Could not add quick session.'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <Screen>
@@ -80,12 +63,11 @@ export function DashboardScreen(): React.JSX.Element {
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Quick add pumping session"
-        onPress={onQuickAdd}
-        disabled={submitting}
+        accessibilityLabel="Start pumping and open add session screen"
+        onPress={() => navigation.navigate('AddSession')}
         style={({ pressed }) => [styles.quickAddButton, pressed && styles.quickAddButtonPressed]}
       >
-        <Text style={styles.quickAddText}>{submitting ? 'Saving...' : 'Quick add 30/30 ml'}</Text>
+        <Text style={styles.quickAddText}>Start Pumping</Text>
       </Pressable>
     </Screen>
   );

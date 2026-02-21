@@ -409,9 +409,9 @@ const styles = StyleSheet.create({
   minutePickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     gap: 12,
-    marginLeft: 4
+    justifyContent: 'center'
   },
   minuteUnitLabel: {
     color: colors.textPrimary,

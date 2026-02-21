@@ -23,8 +23,8 @@ import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
-const MINUTE_ITEM_HEIGHT = 30;
-const MINUTE_WHEEL_VISIBLE_ROWS = 3;
+const MINUTE_ITEM_HEIGHT = 24;
+const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
@@ -417,14 +417,14 @@ const styles = StyleSheet.create({
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     opacity: 0.55
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
-    fontSize: 22,
+    fontSize: 18,
     opacity: 1
   },
   minuteWheelCenterMarker: {

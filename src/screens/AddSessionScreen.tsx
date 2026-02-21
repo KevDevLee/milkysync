@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Vibration,
   View
 } from 'react-native';
 
@@ -16,11 +17,9 @@ import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
-import {
-  formatPumpDuration,
-  getElapsedPumpDurationSeconds,
-  MAX_PUMP_DURATION_SECONDS
-} from '@/utils/timer';
+import { formatPumpDuration } from '@/utils/timer';
+
+const MINUTE_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 105, 120];
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession } = useAppData();
@@ -31,72 +30,91 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [selectedMinutes, setSelectedMinutes] = useState(20);
+  const [targetDurationSeconds, setTargetDurationSeconds] = useState(selectedMinutes * 60);
+  const [remainingSeconds, setRemainingSeconds] = useState(selectedMinutes * 60);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [timerStartedAtMs, setTimerStartedAtMs] = useState<number | null>(null);
-  const [timerBaseSeconds, setTimerBaseSeconds] = useState(0);
-  const [nowMs, setNowMs] = useState(Date.now());
-
-  const elapsedDurationSeconds = getElapsedPumpDurationSeconds(
-    timerBaseSeconds,
-    timerRunning ? timerStartedAtMs : null,
-    nowMs
-  );
+  const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!timerRunning) {
+    if (timerRunning) {
+      return;
+    }
+
+    const nextTarget = selectedMinutes * 60;
+    setTargetDurationSeconds(nextTarget);
+    setRemainingSeconds(nextTarget);
+  }, [selectedMinutes, timerRunning]);
+
+  useEffect(() => {
+    if (!timerRunning || countdownStartedAtMs === null) {
       return;
     }
 
     const interval = setInterval(() => {
-      setNowMs(Date.now());
-    }, 1_000);
+      const elapsedSeconds = Math.floor((Date.now() - countdownStartedAtMs) / 1000);
+      const nextRemainingSeconds = Math.max(targetDurationSeconds - elapsedSeconds, 0);
+      setRemainingSeconds(nextRemainingSeconds);
+
+      if (nextRemainingSeconds === 0) {
+        setTimerRunning(false);
+        setCountdownStartedAtMs(null);
+        Vibration.vibrate([0, 240, 120, 240]);
+        Alert.alert('Timer finished', 'Selected pump duration is complete.');
+      }
+    }, 1000);
 
     return () => {
       clearInterval(interval);
     };
-  }, [timerRunning]);
+  }, [countdownStartedAtMs, targetDurationSeconds, timerRunning]);
 
-  useEffect(() => {
-    if (!timerRunning || elapsedDurationSeconds < MAX_PUMP_DURATION_SECONDS) {
-      return;
+  const getCurrentRemainingSeconds = (): number => {
+    if (!timerRunning || countdownStartedAtMs === null) {
+      return remainingSeconds;
     }
 
-    setTimerRunning(false);
-    setTimerBaseSeconds(MAX_PUMP_DURATION_SECONDS);
-    setTimerStartedAtMs(null);
-  }, [elapsedDurationSeconds, timerRunning]);
+    const elapsedSeconds = Math.floor((Date.now() - countdownStartedAtMs) / 1000);
+    return Math.max(targetDurationSeconds - elapsedSeconds, 0);
+  };
 
   const onStartTimer = (): void => {
     if (timerRunning) {
       return;
     }
 
-    if (timerBaseSeconds >= MAX_PUMP_DURATION_SECONDS) {
-      Alert.alert('Timer limit', 'Maximum duration is 2 hours. Reset to start again.');
-      return;
-    }
-
-    setNowMs(Date.now());
+    const selectedSeconds = selectedMinutes * 60;
+    const nextTargetSeconds =
+      remainingSeconds > 0 && remainingSeconds <= selectedSeconds ? remainingSeconds : selectedSeconds;
+    setTargetDurationSeconds(nextTargetSeconds);
+    setRemainingSeconds(nextTargetSeconds);
+    setCountdownStartedAtMs(Date.now());
     setTimerRunning(true);
-    setTimerStartedAtMs(Date.now());
   };
 
-  const onStopTimer = (): void => {
+  const onPauseTimer = (): void => {
     if (!timerRunning) {
       return;
     }
 
-    setTimerBaseSeconds(elapsedDurationSeconds);
+    const currentRemainingSeconds = getCurrentRemainingSeconds();
+    setRemainingSeconds(currentRemainingSeconds);
     setTimerRunning(false);
-    setTimerStartedAtMs(null);
+    setCountdownStartedAtMs(null);
   };
 
   const onResetTimer = (): void => {
+    const resetSeconds = selectedMinutes * 60;
     setTimerRunning(false);
-    setTimerStartedAtMs(null);
-    setTimerBaseSeconds(0);
-    setNowMs(Date.now());
+    setCountdownStartedAtMs(null);
+    setTargetDurationSeconds(resetSeconds);
+    setRemainingSeconds(resetSeconds);
   };
+
+  const elapsedDurationSeconds = Math.max(
+    targetDurationSeconds - getCurrentRemainingSeconds(),
+    0
+  );
 
   const onSave = async (): Promise<void> => {
     const leftMl = clampMl(Number(leftMlInput));
@@ -109,7 +127,8 @@ export function AddSessionScreen(): React.JSX.Element {
 
     try {
       setSaving(true);
-      const durationSeconds = elapsedDurationSeconds;
+      const currentRemainingSeconds = getCurrentRemainingSeconds();
+      const durationSeconds = Math.max(targetDurationSeconds - currentRemainingSeconds, 0);
 
       await addSession({
         leftMl,
@@ -135,7 +154,7 @@ export function AddSessionScreen(): React.JSX.Element {
   return (
     <Screen>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Add Pump Session</Text>
+        <Text style={styles.title}>Start Pump Session</Text>
 
         <View style={styles.row}>
           <View style={styles.fieldHalf}>
@@ -160,18 +179,41 @@ export function AddSessionScreen(): React.JSX.Element {
           </View>
         </View>
 
-        <Text style={styles.label}>Pumping Timer</Text>
+        <Text style={styles.label}>Duration (minutes)</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.minutesRow}>
+          {MINUTE_OPTIONS.map((minutes) => (
+            <Pressable
+              key={minutes}
+              onPress={() => setSelectedMinutes(minutes)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set duration to ${minutes} minutes`}
+              style={({ pressed }) => [
+                styles.minuteChip,
+                selectedMinutes === minutes && styles.minuteChipActive,
+                pressed && styles.minuteChipPressed
+              ]}
+            >
+              <Text
+                style={[styles.minuteChipText, selectedMinutes === minutes && styles.minuteChipTextActive]}
+              >
+                {minutes}m
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <Text style={styles.label}>Countdown</Text>
         <View style={styles.timerCard}>
-          <Text style={styles.timerValue}>{formatPumpDuration(elapsedDurationSeconds)}</Text>
-          <Text style={styles.timerHint}>Max 02:00:00</Text>
+          <Text style={styles.timerValue}>{formatPumpDuration(remainingSeconds)}</Text>
+          <Text style={styles.timerHint}>A short signal plays when timer reaches 00:00.</Text>
 
           <View style={styles.timerActionsRow}>
             <Pressable
-              onPress={timerRunning ? onStopTimer : onStartTimer}
+              onPress={timerRunning ? onPauseTimer : onStartTimer}
               accessibilityRole="button"
               style={({ pressed }) => [styles.timerButton, pressed && styles.timerPressed]}
             >
-              <Text style={styles.timerButtonText}>{timerRunning ? 'Stop' : 'Start'}</Text>
+              <Text style={styles.timerButtonText}>{timerRunning ? 'Pause' : 'Start'}</Text>
             </Pressable>
             <Pressable
               onPress={onResetTimer}
@@ -264,6 +306,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textPrimary,
     justifyContent: 'center'
+  },
+  minutesRow: {
+    gap: 8,
+    paddingVertical: 2
+  },
+  minuteChip: {
+    minHeight: 42,
+    minWidth: 64,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12
+  },
+  minuteChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  minuteChipPressed: {
+    opacity: 0.85
+  },
+  minuteChipText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  minuteChipTextActive: {
+    color: '#fff'
   },
   timerCard: {
     borderColor: colors.border,

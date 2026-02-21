@@ -19,6 +19,7 @@ const Tabs = createBottomTabNavigator<AppTabsParamList>();
 function AppTabs(): React.JSX.Element {
   return (
     <Tabs.Navigator
+      initialRouteName="AddSession"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#2f6b62',

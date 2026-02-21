@@ -31,7 +31,7 @@ function AppTabs(): React.JSX.Element {
       }}
     >
       <Tabs.Screen name="AddSession" component={AddSessionScreen} options={{ title: 'Start' }} />
-      <Tabs.Screen name="Home" component={DashboardScreen} options={{ title: 'Overview' }} />
+      <Tabs.Screen name="Overview" component={DashboardScreen} options={{ title: 'Overview' }} />
       <Tabs.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tabs.Navigator>

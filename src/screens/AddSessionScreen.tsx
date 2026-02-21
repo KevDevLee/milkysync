@@ -23,7 +23,7 @@ import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
-const MINUTE_ITEM_HEIGHT = 24;
+const MINUTE_ITEM_HEIGHT = 36;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
@@ -391,10 +391,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   minuteWheelContainer: {
-    width: 170,
+    width: 255,
     height: MINUTE_WHEEL_HEIGHT,
     alignSelf: 'center',
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -417,23 +417,23 @@ const styles = StyleSheet.create({
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 21,
     fontWeight: '600',
     opacity: 0.55
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 27,
     opacity: 1
   },
   minuteWheelCenterMarker: {
     position: 'absolute',
-    left: 6,
-    right: 6,
+    left: 9,
+    right: 9,
     top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
     height: MINUTE_ITEM_HEIGHT,
-    borderRadius: 10,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent'

@@ -102,7 +102,7 @@ export function HistoryScreen(): React.JSX.Element {
   }, [selectedMetric]);
 
   const chartData = useMemo(() => {
-    if (chartSessions.length === 0 || chartWidth <= 0) {
+    if (chartSessions.length === 0) {
       return {
         points: [] as ChartPoint[],
         maxValue: 0,
@@ -240,7 +240,7 @@ export function HistoryScreen(): React.JSX.Element {
                 ))}
               </View>
 
-              {chartData.points.length === 0 ? (
+              {chartSessions.length === 0 ? (
                 <Text style={styles.chartEmpty}>No sessions in this timeframe yet.</Text>
               ) : (
                 <>

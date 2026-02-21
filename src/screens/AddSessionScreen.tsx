@@ -35,7 +35,6 @@ export function AddSessionScreen(): React.JSX.Element {
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
   const [timestamp, setTimestamp] = useState(new Date());
-  const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [selectedMinutes, setSelectedMinutes] = useState(DEFAULT_TIMER_MINUTES);
@@ -248,11 +247,6 @@ export function AddSessionScreen(): React.JSX.Element {
     }
   };
 
-  const sessionTimeDisplay = `${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  })}`;
-
   return (
     <Screen>
       <ScrollView
@@ -342,27 +336,42 @@ export function AddSessionScreen(): React.JSX.Element {
         </View>
 
         <Text style={styles.label}>Session Time</Text>
-        <Pressable
-          onPress={() => setShowPicker(true)}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.input, styles.datetimeButton, pressed && styles.datetimePressed]}
-        >
-          <Text style={styles.datetimeText}>{sessionTimeDisplay}</Text>
-        </Pressable>
-
-        {showPicker && (
+        {Platform.OS === 'ios' ? (
           <DateTimePicker
             value={timestamp}
             mode="datetime"
+            display="compact"
             onChange={(_, nextValue) => {
-              if (Platform.OS !== 'ios') {
-                setShowPicker(false);
-              }
               if (nextValue) {
                 setTimestamp(nextValue);
               }
             }}
           />
+        ) : (
+          <View style={styles.row}>
+            <View style={styles.fieldHalf}>
+              <DateTimePicker
+                value={timestamp}
+                mode="date"
+                onChange={(_, nextValue) => {
+                  if (nextValue) {
+                    setTimestamp(nextValue);
+                  }
+                }}
+              />
+            </View>
+            <View style={styles.fieldHalf}>
+              <DateTimePicker
+                value={timestamp}
+                mode="time"
+                onChange={(_, nextValue) => {
+                  if (nextValue) {
+                    setTimestamp(nextValue);
+                  }
+                }}
+              />
+            </View>
+          </View>
         )}
 
         <Text style={styles.label}>Note (optional)</Text>
@@ -540,16 +549,6 @@ const styles = StyleSheet.create({
   },
   timerPressed: {
     opacity: 0.85
-  },
-  datetimeButton: {
-    alignItems: 'flex-start'
-  },
-  datetimePressed: {
-    opacity: 0.8
-  },
-  datetimeText: {
-    color: colors.textPrimary,
-    fontSize: 16
   },
   noteInput: {
     minHeight: 100,

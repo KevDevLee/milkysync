@@ -22,7 +22,7 @@ import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
-const MINUTE_ITEM_HEIGHT = 40;
+const MINUTE_ITEM_HEIGHT = 34;
 const MINUTE_WHEEL_VISIBLE_ROWS = 3;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 
@@ -42,6 +42,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
   const [minuteWheelInteracting, setMinuteWheelInteracting] = useState(false);
   const minuteWheelRef = useRef<ScrollView>(null);
+  const minuteWheelMomentumRef = useRef(false);
 
   useEffect(() => {
     if (timerRunning) {
@@ -106,6 +107,27 @@ export function AddSessionScreen(): React.JSX.Element {
       animated: true
     });
     setMinuteWheelInteracting(false);
+  };
+
+  const onMinutesScrollBeginDrag = (): void => {
+    minuteWheelMomentumRef.current = false;
+    setMinuteWheelInteracting(true);
+  };
+
+  const onMinutesScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    if (!minuteWheelMomentumRef.current) {
+      onMinutesScrollEnd(event);
+    }
+  };
+
+  const onMinutesMomentumScrollBegin = (): void => {
+    minuteWheelMomentumRef.current = true;
+    setMinuteWheelInteracting(true);
+  };
+
+  const onMinutesMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    minuteWheelMomentumRef.current = false;
+    onMinutesScrollEnd(event);
   };
 
   useEffect(() => {
@@ -232,12 +254,12 @@ export function AddSessionScreen(): React.JSX.Element {
             bounces={false}
             nestedScrollEnabled
             scrollEnabled={!timerRunning}
-            onScrollBeginDrag={() => setMinuteWheelInteracting(true)}
-            onMomentumScrollEnd={onMinutesScrollEnd}
-            onScrollEndDrag={onMinutesScrollEnd}
-            onTouchStart={() => setMinuteWheelInteracting(true)}
-            onTouchEnd={() => setMinuteWheelInteracting(false)}
-            onTouchCancel={() => setMinuteWheelInteracting(false)}
+            onScrollBeginDrag={onMinutesScrollBeginDrag}
+            onScrollEndDrag={onMinutesScrollEndDrag}
+            onMomentumScrollBegin={onMinutesMomentumScrollBegin}
+            onMomentumScrollEnd={onMinutesMomentumScrollEnd}
+            onStartShouldSetResponderCapture={() => true}
+            onMoveShouldSetResponderCapture={() => true}
           >
             {MINUTE_OPTIONS.map((item) => (
               <View key={item} style={styles.minuteWheelItem}>
@@ -361,7 +383,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   minuteWheelContainer: {
-    width: 96,
+    width: 124,
     height: MINUTE_WHEEL_HEIGHT,
     alignSelf: 'center',
     borderRadius: 12,
@@ -387,14 +409,14 @@ const styles = StyleSheet.create({
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     opacity: 0.55
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
-    fontSize: 28,
+    fontSize: 24,
     opacity: 1
   },
   minuteWheelCenterMarker: {

@@ -20,13 +20,13 @@ import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 import { clampMl } from '@/utils/pump';
-import { formatPumpDuration } from '@/utils/timer';
 
-const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
+const MINUTE_OPTIONS = Array.from({ length: 121 }, (_, index) => index);
 const MINUTE_ITEM_HEIGHT = 72;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
+const MIN_SELECTABLE_MINUTES = 1;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
@@ -90,7 +90,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const getNearestMinuteIndex = (offsetY: number): number => {
     const roughIndex = Math.round(offsetY / MINUTE_ITEM_HEIGHT);
-    return Math.max(0, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
+    return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
   };
 
   const onMinutesScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -113,7 +113,11 @@ export function AddSessionScreen(): React.JSX.Element {
       try {
         const rawValue = await AsyncStorage.getItem(LAST_TIMER_MINUTES_STORAGE_KEY);
         const parsed = rawValue ? Number.parseInt(rawValue, 10) : Number.NaN;
-        if (Number.isFinite(parsed) && MINUTE_OPTIONS.includes(parsed)) {
+        if (
+          Number.isFinite(parsed) &&
+          parsed >= MIN_SELECTABLE_MINUTES &&
+          MINUTE_OPTIONS.includes(parsed)
+        ) {
           minutes = parsed;
         }
       } catch (error) {
@@ -150,8 +154,34 @@ export function AddSessionScreen(): React.JSX.Element {
     });
   }, [selectedMinutes, timerMinutesLoaded]);
 
+  const displayMinutes = Math.floor(remainingSeconds / 60);
+  const displaySeconds = remainingSeconds % 60;
+  const wheelMinuteValue = timerRunning ? displayMinutes : selectedMinutes;
+
+  useEffect(() => {
+    if (!timerMinutesLoaded) {
+      return;
+    }
+
+    const minuteIndex = MINUTE_OPTIONS.indexOf(wheelMinuteValue);
+    if (minuteIndex < 0) {
+      return;
+    }
+
+    minuteWheelRef.current?.scrollTo({
+      x: 0,
+      y: minuteIndex * MINUTE_ITEM_HEIGHT,
+      animated: timerRunning
+    });
+  }, [timerMinutesLoaded, timerRunning, wheelMinuteValue]);
+
   const onStartTimer = (): void => {
     if (timerRunning) {
+      return;
+    }
+
+    if (selectedMinutes < MIN_SELECTABLE_MINUTES) {
+      Alert.alert('Validation', 'Please select at least 1 minute.');
       return;
     }
 
@@ -182,11 +212,6 @@ export function AddSessionScreen(): React.JSX.Element {
     setTargetDurationSeconds(resetSeconds);
     setRemainingSeconds(resetSeconds);
   };
-
-  const elapsedDurationSeconds = Math.max(
-    targetDurationSeconds - getCurrentRemainingSeconds(),
-    0
-  );
 
   const onSave = async (): Promise<void> => {
     const leftMl = clampMl(Number(leftMlInput));
@@ -233,59 +258,59 @@ export function AddSessionScreen(): React.JSX.Element {
 
         <Text style={styles.label}>Duration</Text>
         <View style={styles.minutePickerGroup}>
-          <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
-            <ScrollView
-              ref={minuteWheelRef}
-              showsVerticalScrollIndicator={false}
-              style={styles.minuteWheel}
-              contentContainerStyle={styles.minuteWheelContent}
-              snapToInterval={MINUTE_ITEM_HEIGHT}
-              decelerationRate="fast"
-              bounces={false}
-              nestedScrollEnabled
-              scrollEnabled={!timerRunning}
-              onMomentumScrollEnd={onMinutesScrollEnd}
-              onScrollEndDrag={onMinutesScrollEnd}
-            >
-              {MINUTE_OPTIONS.map((item) => (
-                <View key={item} style={styles.minuteWheelItem}>
-                  <Text
-                    style={[
-                      styles.minuteWheelItemText,
-                      selectedMinutes === item && styles.minuteWheelItemTextActive
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-            <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
+          <View style={styles.timeDisplayRow}>
+            <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
+              <ScrollView
+                ref={minuteWheelRef}
+                showsVerticalScrollIndicator={false}
+                style={styles.minuteWheel}
+                contentContainerStyle={styles.minuteWheelContent}
+                snapToInterval={MINUTE_ITEM_HEIGHT}
+                decelerationRate="fast"
+                bounces={false}
+                nestedScrollEnabled
+                scrollEnabled={!timerRunning}
+                onMomentumScrollEnd={onMinutesScrollEnd}
+                onScrollEndDrag={onMinutesScrollEnd}
+              >
+                {MINUTE_OPTIONS.map((item) => (
+                  <View key={item} style={styles.minuteWheelItem}>
+                    <Text
+                      style={[
+                        styles.minuteWheelItemText,
+                        wheelMinuteValue === item && styles.minuteWheelItemTextActive
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+              <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
+            </View>
+            <Text style={styles.timeDivider}>:</Text>
+            <View style={styles.secondsBox}>
+              <Text style={styles.secondsValue}>{String(displaySeconds).padStart(2, '0')}</Text>
+            </View>
           </View>
           <Text style={styles.minuteUnitLabel}>Minutes</Text>
         </View>
 
-        <Text style={styles.label}>Countdown</Text>
-        <View style={styles.timerCard}>
-          <Text style={styles.timerValue}>{formatPumpDuration(remainingSeconds)}</Text>
-          <Text style={styles.timerHint}>Scroll up/down to set minutes. Signal plays at 00:00.</Text>
-
-          <View style={styles.timerActionsRow}>
-            <Pressable
-              onPress={timerRunning ? onPauseTimer : onStartTimer}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.timerButton, pressed && styles.timerPressed]}
-            >
-              <Text style={styles.timerButtonText}>{timerRunning ? 'Pause' : 'Start'}</Text>
-            </Pressable>
-            <Pressable
-              onPress={onResetTimer}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.timerButtonSecondary, pressed && styles.timerPressed]}
-            >
-              <Text style={styles.timerButtonSecondaryText}>Reset</Text>
-            </Pressable>
-          </View>
+        <View style={styles.timerActionsRow}>
+          <Pressable
+            onPress={timerRunning ? onPauseTimer : onStartTimer}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.timerButton, pressed && styles.timerPressed]}
+          >
+            <Text style={styles.timerButtonText}>{timerRunning ? 'Pause' : 'Start'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={onResetTimer}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.timerButtonSecondary, pressed && styles.timerPressed]}
+          >
+            <Text style={styles.timerButtonSecondaryText}>Reset</Text>
+          </Pressable>
         </View>
 
         <View style={styles.row}>
@@ -411,9 +436,35 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 10
   },
+  timeDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
   minuteUnitLabel: {
     color: colors.textPrimary,
     fontSize: 42,
+    fontWeight: '700'
+  },
+  timeDivider: {
+    color: colors.textPrimary,
+    fontSize: 48,
+    fontWeight: '700'
+  },
+  secondsBox: {
+    minWidth: 112,
+    height: MINUTE_WHEEL_HEIGHT,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12
+  },
+  secondsValue: {
+    color: colors.textPrimary,
+    fontSize: 54,
     fontWeight: '700'
   },
   minuteWheel: {
@@ -450,26 +501,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: 'transparent'
   },
-  timerCard: {
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    padding: 12,
-    gap: 8
-  },
-  timerValue: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '700'
-  },
-  timerHint: {
-    color: colors.textSecondary,
-    fontSize: 14
-  },
   timerActionsRow: {
     flexDirection: 'row',
-    gap: 10
+    gap: 10,
+    marginTop: 4
   },
   timerButton: {
     minHeight: 48,

@@ -23,8 +23,8 @@ import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 const MINUTE_OPTIONS = Array.from({ length: 116 }, (_, index) => index + 5);
-const MINUTE_ITEM_HEIGHT = 44;
-const MINUTE_WHEEL_VISIBLE_ROWS = 5;
+const MINUTE_ITEM_HEIGHT = 40;
+const MINUTE_WHEEL_VISIBLE_ROWS = 3;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 
 export function AddSessionScreen(): React.JSX.Element {
@@ -237,7 +237,7 @@ export function AddSessionScreen(): React.JSX.Element {
                     selectedMinutes === item && styles.minuteWheelItemTextActive
                   ]}
                 >
-                  {item} min
+                  {item}
                 </Text>
               </View>
             )}
@@ -351,7 +351,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   minuteWheelContainer: {
+    width: 96,
     height: MINUTE_WHEEL_HEIGHT,
+    alignSelf: 'center',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -375,22 +377,24 @@ const styles = StyleSheet.create({
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 18,
-    fontWeight: '600'
+    fontSize: 20,
+    fontWeight: '600',
+    opacity: 0.55
   },
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
-    fontWeight: '700'
+    fontWeight: '700',
+    fontSize: 28,
+    opacity: 1
   },
   minuteWheelCenterMarker: {
     position: 'absolute',
-    left: 10,
-    right: 10,
+    left: 6,
+    right: 6,
     top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
     height: MINUTE_ITEM_HEIGHT,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border
+    backgroundColor: '#ecf4f1'
   },
   timerCard: {
     borderColor: colors.border,

@@ -90,7 +90,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const getNearestMinuteIndex = (offsetY: number): number => {
     const roughIndex = Math.round(offsetY / MINUTE_ITEM_HEIGHT);
-    return Math.max(0, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
+    return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
   };
 
   const onMinutesScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -102,6 +102,11 @@ export function AddSessionScreen(): React.JSX.Element {
     const nextMinuteIndex = getNearestMinuteIndex(offsetY);
     const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
     setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
+    minuteWheelRef.current?.scrollTo({
+      x: 0,
+      y: nextMinuteIndex * MINUTE_ITEM_HEIGHT,
+      animated: true
+    });
   };
 
   useEffect(() => {

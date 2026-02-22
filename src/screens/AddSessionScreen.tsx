@@ -18,6 +18,7 @@ import {
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { useI18n } from '@/i18n/useI18n';
+import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
@@ -35,6 +36,7 @@ const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, sessions } = useAppData();
+  const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
@@ -395,6 +397,7 @@ export function AddSessionScreen(): React.JSX.Element {
             value={timestamp}
             mode="datetime"
             display="compact"
+            themeVariant={preferences.themeMode}
             onChange={(_, nextValue) => {
               if (nextValue) {
                 setTimestamp(nextValue);

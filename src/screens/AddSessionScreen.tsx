@@ -15,10 +15,12 @@ import {
   View
 } from 'react-native';
 
+import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
+import { formatDateTime, formatRelativeDuration } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
 
 const MIN_SELECTABLE_MINUTES = 1;
@@ -31,7 +33,7 @@ const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession } = useAppData();
+  const { addSession, sessions } = useAppData();
   const [leftMlInput, setLeftMlInput] = useState('0');
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
@@ -44,8 +46,19 @@ export function AddSessionScreen(): React.JSX.Element {
   const [timerMinutesLoaded, setTimerMinutesLoaded] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
   const minuteWheelRef = useRef<ScrollView>(null);
   const minuteWheelMomentumRef = useRef(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 60_000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const nextTarget = selectedMinutes * 60;
@@ -161,6 +174,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
+  const lastSession = sessions[0] ?? null;
   const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
   const minuteWheelItems = useMemo(
@@ -276,6 +290,20 @@ export function AddSessionScreen(): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.content}
       >
+        <AppCard style={styles.lastSessionCard}>
+          <Text style={styles.lastSessionLabel}>Last Session</Text>
+          {lastSession ? (
+            <>
+              <Text style={styles.lastSessionValue}>
+                {formatRelativeDuration(lastSession.timestamp, now)}
+              </Text>
+              <Text style={styles.lastSessionMeta}>{formatDateTime(lastSession.timestamp)}</Text>
+            </>
+          ) : (
+            <Text style={styles.lastSessionMeta}>No session logged yet.</Text>
+          )}
+        </AppCard>
+
         <Text style={styles.title}>Start Pump Session</Text>
 
         <Text style={styles.label}>Duration</Text>
@@ -429,6 +457,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 8
+  },
+  lastSessionCard: {
+    marginBottom: 4,
+    gap: 3
+  },
+  lastSessionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  lastSessionValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary
+  },
+  lastSessionMeta: {
+    fontSize: 14,
+    color: colors.textSecondary
   },
   row: {
     flexDirection: 'row',

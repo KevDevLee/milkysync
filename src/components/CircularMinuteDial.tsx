@@ -15,20 +15,17 @@ type CircularMinuteDialProps = {
   onInteractionChange?: (isInteracting: boolean) => void;
 };
 
-type Point = {
-  x: number;
-  y: number;
-};
+type Point = { x: number; y: number };
 
 const DIAL_SIZE = 320;
-const RING_OUTER_SIZE = 264;
-const RING_INNER_SIZE = 168;
-const TRACK_RADIUS = (RING_OUTER_SIZE + RING_INNER_SIZE) / 4;
+const OUTER_DIAMETER = 264;
+const INNER_DIAMETER = 168;
+const TRACK_RADIUS = (OUTER_DIAMETER + INNER_DIAMETER) / 4;
 const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
-const TRACK_TOUCH_PADDING = 0;
-const MAX_DELTA_DEGREES_PER_EVENT = 14;
+const TOUCH_MARGIN = 4;
+const MAX_DELTA_PER_MOVE_DEG = 18;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -42,34 +39,31 @@ function normalizeAngle(angle: number): number {
   return next;
 }
 
-function getClockAngleFromTouch(x: number, y: number, center: Point): number {
+function shortestAngleDelta(next: number, prev: number): number {
+  let delta = next - prev;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  return delta;
+}
+
+function distance(x: number, y: number, center: Point): number {
+  const dx = x - center.x;
+  const dy = y - center.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function angleFromTouch(x: number, y: number, center: Point): number {
   const dx = x - center.x;
   const dy = y - center.y;
   return normalizeAngle((Math.atan2(dx, -dy) * 180) / Math.PI);
 }
 
-function shortestAngleDelta(next: number, prev: number): number {
-  let delta = next - prev;
-  if (delta > 180) {
-    delta -= 360;
-  } else if (delta < -180) {
-    delta += 360;
-  }
-  return delta;
-}
-
-function pointOnCircle(center: Point, radius: number, clockAngle: number): Point {
-  const rad = (clockAngle * Math.PI) / 180;
+function pointOnCircle(center: Point, radius: number, angleDeg: number): Point {
+  const rad = (angleDeg * Math.PI) / 180;
   return {
     x: center.x + Math.sin(rad) * radius,
     y: center.y - Math.cos(rad) * radius
   };
-}
-
-function distanceToCenter(x: number, y: number, center: Point): number {
-  const dx = x - center.x;
-  const dy = y - center.y;
-  return Math.sqrt(dx * dx + dy * dy);
 }
 
 export function CircularMinuteDial({
@@ -78,191 +72,178 @@ export function CircularMinuteDial({
   max,
   disabled = false,
   countdownSeconds = null,
-  countdownTotalSeconds = null,
   showCountdown = false,
   onChange,
   onInteractionChange
 }: CircularMinuteDialProps): React.JSX.Element {
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(), []);
-  const [dialSize, setDialSize] = useState<Point>({ x: DIAL_SIZE, y: DIAL_SIZE });
-  const [dragVisualAngle, setDragVisualAngle] = useState<number | null>(null);
-  const center = useMemo<Point>(() => ({ x: dialSize.x / 2, y: dialSize.y / 2 }), [dialSize.x, dialSize.y]);
 
-  const safeMax = Math.max(minSelectable, max);
-  const clampedValue = clamp(value, minSelectable, safeMax);
-  const countdownMode = showCountdown && countdownSeconds !== null && countdownTotalSeconds !== null;
-  const safeCountdownSeconds = countdownMode ? Math.max(0, countdownSeconds) : null;
-  const countdownMinutesFloat = countdownMode && safeCountdownSeconds !== null ? safeCountdownSeconds / 60 : null;
-  const dialMinutesForPosition = countdownMode && countdownMinutesFloat !== null ? countdownMinutesFloat : clampedValue;
-  const quantizedKnobAngle = normalizeAngle(((dialMinutesForPosition % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
-  const angleForKnob =
-    !countdownMode && dragVisualAngle !== null ? dragVisualAngle : quantizedKnobAngle;
-  const knobPoint = pointOnCircle(center, TRACK_RADIUS, angleForKnob);
-  const fullTurns = Math.floor(dialMinutesForPosition / MINUTES_PER_TURN);
-  const minuteCycleValueRaw = dialMinutesForPosition % MINUTES_PER_TURN;
-  const minuteCycleValue =
-    minuteCycleValueRaw === 0 && dialMinutesForPosition > 0 ? MINUTES_PER_TURN : minuteCycleValueRaw;
+  const [layout, setLayout] = useState<Point>({ x: DIAL_SIZE, y: DIAL_SIZE });
+  const [dragDisplayMinutes, setDragDisplayMinutes] = useState<number | null>(null);
+  const center = useMemo<Point>(() => ({ x: layout.x / 2, y: layout.y / 2 }), [layout.x, layout.y]);
 
-  const dragStartValueRef = useRef(clampedValue);
-  const lastAngleRef = useRef<number | null>(null);
-  const accumulatedAngleRef = useRef(0);
-  const dragActiveRef = useRef(false);
+  const safeMin = Math.max(0, minSelectable);
+  const safeMax = Math.max(safeMin, max);
+  const currentValue = clamp(value, safeMin, safeMax);
+  const countdownMode = Boolean(showCountdown && countdownSeconds !== null);
+  const remainingSeconds = countdownMode ? Math.max(0, countdownSeconds ?? 0) : null;
+  const remainingMinutesFloat = countdownMode && remainingSeconds !== null ? remainingSeconds / 60 : null;
+
+  const visibleMinutes = countdownMode
+    ? (remainingMinutesFloat ?? currentValue)
+    : (dragDisplayMinutes ?? currentValue);
+
+  const knobAngle = normalizeAngle((visibleMinutes % MINUTES_PER_TURN) * DEGREES_PER_MINUTE);
+  const knobPoint = pointOnCircle(center, TRACK_RADIUS, knobAngle);
+
+  const ringTouchMinRadius = INNER_DIAMETER / 2 - TOUCH_MARGIN;
+  const ringTouchMaxRadius = OUTER_DIAMETER / 2 + TOUCH_MARGIN;
+
   const centerRef = useRef(center);
-  const currentValueRef = useRef(clampedValue);
-  const minSelectableRef = useRef(minSelectable);
-  const safeMaxRef = useRef(safeMax);
   const disabledRef = useRef(disabled);
   const onChangeRef = useRef(onChange);
   const onInteractionChangeRef = useRef(onInteractionChange);
-  const dragVisualAngleRef = useRef<number | null>(null);
+  const valueRef = useRef(currentValue);
+  const minRef = useRef(safeMin);
+  const maxRef = useRef(safeMax);
+
+  const draggingRef = useRef(false);
+  const dragStartValueRef = useRef(currentValue);
+  const dragAccumulatedDegRef = useRef(0);
+  const dragPrevAngleRef = useRef<number | null>(null);
 
   useEffect(() => {
     centerRef.current = center;
   }, [center]);
 
   useEffect(() => {
-    currentValueRef.current = clampedValue;
-  }, [clampedValue]);
-
-  useEffect(() => {
-    minSelectableRef.current = minSelectable;
-    safeMaxRef.current = safeMax;
     disabledRef.current = disabled;
     onChangeRef.current = onChange;
     onInteractionChangeRef.current = onInteractionChange;
-  }, [disabled, minSelectable, onChange, onInteractionChange, safeMax]);
+    valueRef.current = currentValue;
+    minRef.current = safeMin;
+    maxRef.current = safeMax;
+  }, [disabled, onChange, onInteractionChange, currentValue, safeMin, safeMax]);
 
-  const isTouchNearTrack = (x: number, y: number): boolean => {
-    const distance = distanceToCenter(x, y, centerRef.current);
-    const minRadius = RING_INNER_SIZE / 2 - TRACK_TOUCH_PADDING;
-    const maxRadius = RING_OUTER_SIZE / 2 + TRACK_TOUCH_PADDING;
-    return distance >= minRadius && distance <= maxRadius;
+  const isTouchOnVisibleRing = (x: number, y: number): boolean => {
+    const d = distance(x, y, centerRef.current);
+    return d >= ringTouchMinRadius && d <= ringTouchMaxRadius;
   };
 
-  const onLayout = (event: LayoutChangeEvent): void => {
-    const { width, height } = event.nativeEvent.layout;
-    const nextWidth = Math.round(width);
-    const nextHeight = Math.round(height);
-    if (nextWidth !== dialSize.x || nextHeight !== dialSize.y) {
-      setDialSize({ x: nextWidth, y: nextHeight });
-    }
-  };
-
-  const updateFromTouch = (locationX: number, locationY: number): void => {
-    if (disabledRef.current) {
+  const updateValueFromMove = (x: number, y: number): void => {
+    if (disabledRef.current || !draggingRef.current) {
       return;
     }
 
-    const nextAngle = getClockAngleFromTouch(locationX, locationY, centerRef.current);
-    if (!isTouchNearTrack(locationX, locationY)) {
-      // Re-sync angle while outside the active ring to avoid large jumps on re-entry.
-      lastAngleRef.current = nextAngle;
+    if (!isTouchOnVisibleRing(x, y)) {
       return;
     }
-    if (
-      dragVisualAngleRef.current === null ||
-      Math.abs(shortestAngleDelta(nextAngle, dragVisualAngleRef.current)) >= 1
-    ) {
-      dragVisualAngleRef.current = nextAngle;
-      setDragVisualAngle(nextAngle);
-    }
 
-    const prevAngle = lastAngleRef.current;
+    const nextAngle = angleFromTouch(x, y, centerRef.current);
+    const prevAngle = dragPrevAngleRef.current;
     if (prevAngle === null) {
-      lastAngleRef.current = nextAngle;
+      dragPrevAngleRef.current = nextAngle;
       return;
     }
 
-    const delta = shortestAngleDelta(nextAngle, prevAngle);
-    const clampedDelta = clamp(delta, -MAX_DELTA_DEGREES_PER_EVENT, MAX_DELTA_DEGREES_PER_EVENT);
-    accumulatedAngleRef.current += clampedDelta;
-    lastAngleRef.current = nextAngle;
+    const rawDelta = shortestAngleDelta(nextAngle, prevAngle);
+    const delta = clamp(rawDelta, -MAX_DELTA_PER_MOVE_DEG, MAX_DELTA_PER_MOVE_DEG);
+    dragAccumulatedDegRef.current += delta;
+    dragPrevAngleRef.current = nextAngle;
 
-    const minuteDelta = Math.trunc(accumulatedAngleRef.current / DEGREES_PER_MINUTE);
-    const nextValue = clamp(dragStartValueRef.current + minuteDelta, minSelectableRef.current, safeMaxRef.current);
-    if (nextValue !== currentValueRef.current) {
-      onChangeRef.current(nextValue);
+    const nextMinuteFloat = dragStartValueRef.current + dragAccumulatedDegRef.current / DEGREES_PER_MINUTE;
+    const boundedMinuteFloat = clamp(nextMinuteFloat, minRef.current, maxRef.current);
+    setDragDisplayMinutes(boundedMinuteFloat);
+
+    const nextMinuteRounded = clamp(Math.round(boundedMinuteFloat), minRef.current, maxRef.current);
+    if (nextMinuteRounded !== valueRef.current) {
+      onChangeRef.current(nextMinuteRounded);
     }
   };
 
   const panResponderRef = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: (event) =>
-        !disabledRef.current && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
-      onMoveShouldSetPanResponder: (event) =>
-        !disabledRef.current && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
-      onPanResponderGrant: (event) => {
+      onStartShouldSetPanResponder: (evt) =>
+        !disabledRef.current && isTouchOnVisibleRing(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+      onMoveShouldSetPanResponder: (evt) =>
+        !disabledRef.current && isTouchOnVisibleRing(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+      onPanResponderGrant: (evt) => {
         if (disabledRef.current) {
           return;
         }
-        const { locationX, locationY } = event.nativeEvent;
-        dragStartValueRef.current = currentValueRef.current;
-        accumulatedAngleRef.current = 0;
-        lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, centerRef.current);
-        dragActiveRef.current = isTouchNearTrack(locationX, locationY);
-        if (dragActiveRef.current) {
-          dragVisualAngleRef.current = lastAngleRef.current;
-          setDragVisualAngle(lastAngleRef.current);
-          onInteractionChangeRef.current?.(true);
-        }
-      },
-      onPanResponderMove: (event) => {
-        const { locationX, locationY } = event.nativeEvent;
-        if (!dragActiveRef.current && isTouchNearTrack(locationX, locationY)) {
-          dragActiveRef.current = true;
-          dragStartValueRef.current = currentValueRef.current;
-          accumulatedAngleRef.current = 0;
-          lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, centerRef.current);
-          dragVisualAngleRef.current = lastAngleRef.current;
-          setDragVisualAngle(lastAngleRef.current);
-          onInteractionChangeRef.current?.(true);
+
+        const { locationX, locationY } = evt.nativeEvent;
+        if (!isTouchOnVisibleRing(locationX, locationY)) {
+          draggingRef.current = false;
           return;
         }
-        updateFromTouch(locationX, locationY);
+
+        draggingRef.current = true;
+        dragStartValueRef.current = valueRef.current;
+        dragAccumulatedDegRef.current = 0;
+        dragPrevAngleRef.current = angleFromTouch(locationX, locationY, centerRef.current);
+        setDragDisplayMinutes(valueRef.current);
+        onInteractionChangeRef.current?.(true);
+      },
+      onPanResponderMove: (evt) => {
+        updateValueFromMove(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
       },
       onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: () => {
-        const wasActive = dragActiveRef.current;
-        dragActiveRef.current = false;
-        lastAngleRef.current = null;
-        accumulatedAngleRef.current = 0;
-        dragVisualAngleRef.current = null;
-        setDragVisualAngle(null);
-        if (wasActive) {
+        const wasDragging = draggingRef.current;
+        draggingRef.current = false;
+        dragPrevAngleRef.current = null;
+        dragAccumulatedDegRef.current = 0;
+        setDragDisplayMinutes(null);
+        if (wasDragging) {
           onInteractionChangeRef.current?.(false);
         }
       },
       onPanResponderTerminate: () => {
-        const wasActive = dragActiveRef.current;
-        dragActiveRef.current = false;
-        lastAngleRef.current = null;
-        accumulatedAngleRef.current = 0;
-        dragVisualAngleRef.current = null;
-        setDragVisualAngle(null);
-        if (wasActive) {
+        const wasDragging = draggingRef.current;
+        draggingRef.current = false;
+        dragPrevAngleRef.current = null;
+        dragAccumulatedDegRef.current = 0;
+        setDragDisplayMinutes(null);
+        if (wasDragging) {
           onInteractionChangeRef.current?.(false);
         }
       }
     })
   );
 
-  const tickAngles = useMemo(() => Array.from({ length: 60 }, (_, index) => index * 6), []);
+  const tickAngles = useMemo(() => Array.from({ length: 60 }, (_, i) => i * 6), []);
+  const activeTicks = Math.floor((visibleMinutes % MINUTES_PER_TURN) || 0);
+
+  const onLayout = (event: LayoutChangeEvent): void => {
+    const { width, height } = event.nativeEvent.layout;
+    const next = { x: Math.round(width), y: Math.round(height) };
+    if (next.x !== layout.x || next.y !== layout.y) {
+      setLayout(next);
+    }
+  };
+
+  const largeLabel = countdownMode && remainingSeconds !== null
+    ? `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`
+    : String(currentValue);
+
+  const smallLabel = countdownMode ? 'remaining' : 'minutes';
 
   return (
     <View
       onLayout={onLayout}
-      style={[styles.container, disabled && { opacity: 0.7 }]}
+      style={[styles.container, disabled && styles.disabled]}
       {...panResponderRef.current.panHandlers}
     >
       <View
         style={[
           styles.outerRing,
           {
-            width: RING_OUTER_SIZE,
-            height: RING_OUTER_SIZE,
-            left: center.x - RING_OUTER_SIZE / 2,
-            top: center.y - RING_OUTER_SIZE / 2,
+            width: OUTER_DIAMETER,
+            height: OUTER_DIAMETER,
+            left: center.x - OUTER_DIAMETER / 2,
+            top: center.y - OUTER_DIAMETER / 2,
             borderColor: colors.border,
             backgroundColor: colors.surface
           }
@@ -271,21 +252,20 @@ export function CircularMinuteDial({
 
       {tickAngles.map((angle, index) => {
         const tickCenter = pointOnCircle(center, TRACK_RADIUS, angle);
-        const major = index % 5 === 0;
-        const activeThreshold = minuteCycleValue;
-        const active = index < activeThreshold;
+        const isMajor = index % 5 === 0;
+        const isActive = index < activeTicks;
         return (
           <View
             key={`tick-${angle}`}
             style={[
               styles.tick,
               {
-                width: major ? 4 : 3,
-                height: major ? 16 : 10,
+                width: isMajor ? 4 : 3,
+                height: isMajor ? 18 : 10,
                 borderRadius: 2,
-                backgroundColor: active ? colors.primary : colors.border,
-                left: tickCenter.x - (major ? 2 : 1.5),
-                top: tickCenter.y - (major ? 8 : 5),
+                left: tickCenter.x - (isMajor ? 2 : 1.5),
+                top: tickCenter.y - (isMajor ? 9 : 5),
+                backgroundColor: isActive ? colors.primary : colors.border,
                 transform: [{ rotate: `${angle}deg` }]
               }
             ]}
@@ -295,12 +275,12 @@ export function CircularMinuteDial({
 
       <View
         style={[
-          styles.innerRing,
+          styles.innerCutout,
           {
-            width: RING_INNER_SIZE,
-            height: RING_INNER_SIZE,
-            left: center.x - RING_INNER_SIZE / 2,
-            top: center.y - RING_INNER_SIZE / 2,
+            width: INNER_DIAMETER,
+            height: INNER_DIAMETER,
+            left: center.x - INNER_DIAMETER / 2,
+            top: center.y - INNER_DIAMETER / 2,
             borderColor: colors.border,
             backgroundColor: colors.background
           }
@@ -323,26 +303,10 @@ export function CircularMinuteDial({
       />
 
       <View style={styles.centerContent}>
-        {countdownMode && safeCountdownSeconds !== null ? (
-          <>
-            <Text style={[styles.timerText, { color: colors.textPrimary }]}>
-              {String(Math.floor(safeCountdownSeconds / 60)).padStart(2, '0')}:
-              {String(safeCountdownSeconds % 60).padStart(2, '0')}
-            </Text>
-            <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>remaining</Text>
-            <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
-              {fullTurns} turn{fullTurns === 1 ? '' : 's'} + {Math.floor(minuteCycleValueRaw)}m
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.valueText, { color: colors.textPrimary }]}>{clampedValue}</Text>
-            <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>minutes</Text>
-            <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
-              {fullTurns} turn{fullTurns === 1 ? '' : 's'} + {clampedValue % MINUTES_PER_TURN}m
-            </Text>
-          </>
-        )}
+        <Text style={[countdownMode ? styles.timerText : styles.valueText, { color: colors.textPrimary }]}>
+          {largeLabel}
+        </Text>
+        <Text style={[styles.unitText, { color: colors.textSecondary }]}>{smallLabel}</Text>
       </View>
     </View>
   );
@@ -353,19 +317,22 @@ function createStyles() {
     container: {
       width: DIAL_SIZE,
       height: DIAL_SIZE,
+      position: 'relative',
       alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative'
+      justifyContent: 'center'
+    },
+    disabled: {
+      opacity: 0.72
     },
     outerRing: {
       position: 'absolute',
-      borderRadius: RING_OUTER_SIZE / 2,
-      borderWidth: 1
+      borderWidth: 1,
+      borderRadius: OUTER_DIAMETER / 2
     },
-    innerRing: {
+    innerCutout: {
       position: 'absolute',
-      borderRadius: RING_INNER_SIZE / 2,
-      borderWidth: 1
+      borderWidth: 1,
+      borderRadius: INNER_DIAMETER / 2
     },
     tick: {
       position: 'absolute'
@@ -388,16 +355,11 @@ function createStyles() {
       fontWeight: '700',
       fontVariant: ['tabular-nums']
     },
-    valueUnitText: {
+    unitText: {
       fontSize: 14,
       fontWeight: '700',
       textTransform: 'uppercase',
-      letterSpacing: 0.5
-    },
-    turnsText: {
-      marginTop: 4,
-      fontSize: 12,
-      fontWeight: '600'
+      letterSpacing: 0.6
     }
   });
 }

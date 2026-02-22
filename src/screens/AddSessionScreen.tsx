@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
+import { CircularMinuteDial } from '@/components/CircularMinuteDial';
 import { Screen } from '@/components/Screen';
 import { useI18n } from '@/i18n/useI18n';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
@@ -30,7 +31,6 @@ import { clampMl } from '@/utils/pump';
 const MIN_SELECTABLE_MINUTES = 1;
 const MAX_SESSION_TIMER_MINUTES = 360;
 const MAX_NEXT_ROUND_TIMER_MINUTES = 360;
-const SESSION_MINUTE_OPTIONS = Array.from({ length: MAX_SESSION_TIMER_MINUTES + 1 }, (_, index) => index);
 const NEXT_ROUND_MINUTE_OPTIONS = Array.from(
   { length: MAX_NEXT_ROUND_TIMER_MINUTES + 1 },
   (_, index) => index
@@ -63,8 +63,6 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
   const [nextRoundMinutes, setNextRoundMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [now, setNow] = useState(Date.now());
-  const minuteWheelRef = useRef<ScrollView>(null);
-  const minuteWheelMomentumRef = useRef(false);
   const nextRoundWheelRef = useRef<ScrollView>(null);
   const nextRoundWheelMomentumRef = useRef(false);
   const nextRoundDefaultMinutes = Math.max(
@@ -149,24 +147,6 @@ export function AddSessionScreen(): React.JSX.Element {
     return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, maxIndex));
   };
 
-  const onMinutesScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    if (timerRunning) {
-      return;
-    }
-
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const nextMinuteIndex = getNearestMinuteIndex(offsetY, SESSION_MINUTE_OPTIONS.length - 1);
-    const nextMinutes = SESSION_MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
-    setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
-    if (nextMinuteIndex === MIN_SELECTABLE_MINUTES) {
-      minuteWheelRef.current?.scrollTo({
-        x: 0,
-        y: MIN_SELECTABLE_MINUTES * MINUTE_ITEM_HEIGHT,
-        animated: false
-      });
-    }
-  }, [selectedMinutes, timerRunning]);
-
   const onNextRoundMinutesScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
       const offsetY = event.nativeEvent.contentOffset.y;
@@ -196,8 +176,7 @@ export function AddSessionScreen(): React.JSX.Element {
         if (
           Number.isFinite(parsed) &&
           parsed >= MIN_SELECTABLE_MINUTES &&
-          parsed <= MAX_SESSION_TIMER_MINUTES &&
-          SESSION_MINUTE_OPTIONS.includes(parsed)
+          parsed <= MAX_SESSION_TIMER_MINUTES
         ) {
           minutes = parsed;
         }
@@ -210,11 +189,6 @@ export function AddSessionScreen(): React.JSX.Element {
       }
 
       setSelectedMinutes(minutes);
-      minuteWheelRef.current?.scrollTo({
-        x: 0,
-        y: SESSION_MINUTE_OPTIONS.indexOf(minutes) * MINUTE_ITEM_HEIGHT,
-        animated: false
-      });
       setTimerMinutesLoaded(true);
     };
 
@@ -240,22 +214,6 @@ export function AddSessionScreen(): React.JSX.Element {
   const lastSession = sessions[0] ?? null;
   const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
-  const minuteWheelItems = useMemo(
-    () =>
-      SESSION_MINUTE_OPTIONS.map((item) => (
-        <View key={item} style={styles.minuteWheelItem}>
-          <Text
-            style={[
-              styles.minuteWheelItemText,
-              wheelMinuteValue === item && styles.minuteWheelItemTextActive
-            ]}
-          >
-            {item}
-          </Text>
-        </View>
-      )),
-    [wheelMinuteValue]
-  );
   const nextRoundMinuteWheelItems = useMemo(
     () =>
       NEXT_ROUND_MINUTE_OPTIONS.map((item) => (
@@ -272,23 +230,6 @@ export function AddSessionScreen(): React.JSX.Element {
       )),
     [nextRoundMinutes, styles.modalMinuteWheelItem, styles.modalMinuteWheelItemText, styles.modalMinuteWheelItemTextActive]
   );
-
-  useEffect(() => {
-    if (!timerMinutesLoaded) {
-      return;
-    }
-
-    const minuteIndex = SESSION_MINUTE_OPTIONS.indexOf(wheelMinuteValue);
-    if (minuteIndex < 0) {
-      return;
-    }
-
-    minuteWheelRef.current?.scrollTo({
-      x: 0,
-      y: minuteIndex * MINUTE_ITEM_HEIGHT,
-      animated: false
-    });
-  }, [timerMinutesLoaded, wheelMinuteValue]);
 
   const startFreshTimer = (minutes: number): void => {
     const safeMinutes = Math.max(MIN_SELECTABLE_MINUTES, Math.min(MAX_NEXT_ROUND_TIMER_MINUTES, minutes));
@@ -425,34 +366,15 @@ export function AddSessionScreen(): React.JSX.Element {
         <Text style={styles.label}>{t('start.duration')}</Text>
         <View style={styles.minutePickerGroup}>
           <View style={styles.timeDisplayRow}>
-            <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
-              <ScrollView
-                ref={minuteWheelRef}
-                showsVerticalScrollIndicator={false}
-                style={styles.minuteWheel}
-                contentContainerStyle={styles.minuteWheelContent}
-                snapToInterval={MINUTE_ITEM_HEIGHT}
-                decelerationRate="fast"
-                bounces={false}
-              nestedScrollEnabled
-              scrollEnabled={!timerRunning}
-              onScrollBeginDrag={() => {
-                minuteWheelMomentumRef.current = false;
+            <CircularMinuteDial
+              value={wheelMinuteValue}
+              max={MAX_SESSION_TIMER_MINUTES}
+              minSelectable={MIN_SELECTABLE_MINUTES}
+              disabled={timerRunning}
+              onChange={(nextValue) => {
+                setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextValue));
               }}
-              onMomentumScrollBegin={() => {
-                minuteWheelMomentumRef.current = true;
-              }}
-              onMomentumScrollEnd={onMinutesScrollEnd}
-              onScrollEndDrag={(event) => {
-                if (!minuteWheelMomentumRef.current) {
-                  onMinutesScrollEnd(event);
-                }
-              }}
-            >
-                {minuteWheelItems}
-              </ScrollView>
-              <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
-            </View>
+            />
             <Text style={styles.timeDivider}>:</Text>
             <View style={styles.secondsBox}>
               <Text style={styles.secondsValue}>{String(displaySeconds).padStart(2, '0')}</Text>
@@ -719,19 +641,6 @@ function createStyles(colors: AppColors) {
     color: colors.textPrimary,
     justifyContent: 'center'
   },
-  minuteWheelContainer: {
-    width: 168,
-    height: MINUTE_WHEEL_HEIGHT,
-    borderRadius: 36,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-    position: 'relative'
-  },
-  minuteWheelDisabled: {
-    opacity: 0.65
-  },
   minutePickerGroup: {
     alignItems: 'center',
     alignSelf: 'center',
@@ -740,22 +649,22 @@ function createStyles(colors: AppColors) {
   timeDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 12
   },
   minuteUnitLabel: {
     color: colors.textPrimary,
-    fontSize: 42,
+    fontSize: 26,
     fontWeight: '700'
   },
   timeDivider: {
     color: colors.textPrimary,
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: '700'
   },
   secondsBox: {
-    minWidth: 112,
-    height: MINUTE_WHEEL_HEIGHT,
-    borderRadius: 24,
+    minWidth: 92,
+    height: 86,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -765,45 +674,12 @@ function createStyles(colors: AppColors) {
   },
   secondsValue: {
     color: colors.textPrimary,
-    fontSize: 54,
+    fontSize: 42,
     fontWeight: '700',
     fontVariant: ['tabular-nums']
-  },
-  minuteWheel: {
-    flex: 1
   },
   minuteWheelContent: {
     paddingVertical: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2
-  },
-  minuteWheelItem: {
-    height: MINUTE_ITEM_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  minuteWheelItemText: {
-    color: colors.textSecondary,
-    fontSize: 42,
-    fontWeight: '600',
-    opacity: 0.55,
-    fontVariant: ['tabular-nums']
-  },
-  minuteWheelItemTextActive: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 54,
-    opacity: 1,
-    fontVariant: ['tabular-nums']
-  },
-  minuteWheelCenterMarker: {
-    position: 'absolute',
-    left: 18,
-    right: 18,
-    top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
-    height: MINUTE_ITEM_HEIGHT,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: 'transparent'
   },
   timerActionsRow: {
     flexDirection: 'row',

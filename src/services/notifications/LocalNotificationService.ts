@@ -5,6 +5,8 @@ import { NotificationService, ReminderNotificationInput } from '@/services/notif
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false
   })
@@ -24,7 +26,10 @@ export class LocalNotificationService implements NotificationService {
   }
 
   async scheduleReminder(input: ReminderNotificationInput): Promise<string> {
-    const triggerDate = new Date(input.at);
+    const now = Date.now();
+    // iOS can throw if a date trigger is in the past or too close to "now".
+    const safeTimestamp = Math.max(input.at, now + 5_000);
+    const triggerDate = new Date(safeTimestamp);
 
     return Notifications.scheduleNotificationAsync({
       content: {

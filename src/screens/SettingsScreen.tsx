@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
@@ -119,121 +119,130 @@ export function SettingsScreen(): React.JSX.Element {
 
   return (
     <Screen>
-      <Text style={styles.title}>{t('settings.title')}</Text>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>{t('settings.title')}</Text>
 
-      <AppCard style={styles.card}>
-        <Text style={styles.label}>{t('settings.loggedInAs')}</Text>
-        <Text style={styles.helper}>{profile.email}</Text>
-        <Text style={styles.helper}>
-          {t('settings.role')}: {profile.role}
-        </Text>
-      </AppCard>
-
-      <AppCard style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('settings.appPreferences')}</Text>
-
-        <View style={styles.switchRow}>
-          <View style={styles.switchTextGroup}>
-            <Text style={styles.label}>{t('settings.darkMode')}</Text>
-            <Text style={styles.helper}>
-              {preferences.themeMode === 'dark' ? t('settings.on') : t('settings.off')}
-            </Text>
-          </View>
-          <Switch
-            value={preferences.themeMode === 'dark'}
-            onValueChange={(value) => {
-              void setThemeMode(value ? 'dark' : 'light');
-            }}
-            trackColor={{ true: colors.primary, false: '#6a7471' }}
-            thumbColor={colors.surface}
-          />
-        </View>
-
-        <View style={styles.switchRow}>
-          <View style={styles.switchTextGroup}>
-            <Text style={styles.label}>{t('settings.languageToggle')}</Text>
-            <Text style={styles.helper}>
-              {preferences.language === 'de' ? t('settings.language.de') : t('settings.language.en')}
-            </Text>
-          </View>
-          <Switch
-            value={preferences.language === 'de'}
-            onValueChange={(value) => {
-              void setLanguage(value ? 'de' : 'en');
-            }}
-            trackColor={{ true: colors.primary, false: '#6a7471' }}
-            thumbColor={colors.surface}
-          />
-        </View>
-
-        <Text style={styles.helper}>{t('settings.preferencesHint')}</Text>
-      </AppCard>
-
-      <AppCard style={styles.card}>
-        <AppInput
-          label={t('settings.reminderEveryMinutes')}
-          value={intervalInput}
-          onChangeText={setIntervalInput}
-          keyboardType="numeric"
-          accessibilityLabel={t('settings.reminderEveryMinutes')}
-        />
-
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>{t('settings.enableReminders')}</Text>
-          <Switch
-            value={enabled}
-            onValueChange={setEnabled}
-            trackColor={{ true: colors.primary, false: '#6a7471' }}
-            thumbColor={colors.surface}
-          />
-        </View>
-
-        <Text style={styles.helper}>{t('settings.unitsFixed')}</Text>
-        <AppButton label={t('settings.saveSettings')} onPress={() => void onSave()} />
-      </AppCard>
-
-      <AppCard style={styles.card}>
-        <Text style={styles.sectionTitle}>{t('settings.partnerPairing')}</Text>
-        <Text style={styles.helper}>
-          {t('settings.familyId')}: {profile.familyId ?? t('settings.notSet')}
-        </Text>
-
-        <AppButton
-          label={pairingBusy ? t('common.working') : t('settings.generateInviteCode')}
-          onPress={() => void onGenerateCode()}
-          disabled={pairingBusy}
-          variant="secondary"
-        />
-
-        {generatedCode ? (
-          <Text style={styles.inviteCode}>
-            {t('settings.inviteCode')}: {generatedCode}
+        <AppCard style={styles.card}>
+          <Text style={styles.label}>{t('settings.loggedInAs')}</Text>
+          <Text style={styles.helper}>{profile.email}</Text>
+          <Text style={styles.helper}>
+            {t('settings.role')}: {profile.role}
           </Text>
-        ) : null}
+        </AppCard>
 
-        <AppInput
-          value={joinCode}
-          onChangeText={setJoinCode}
-          placeholder={t('settings.enterInviteCode')}
-          autoCapitalize="characters"
-        />
+        <AppCard style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('settings.appPreferences')}</Text>
 
-        <AppButton
-          label={pairingBusy ? t('common.working') : t('settings.joinFamily')}
-          onPress={() => void onJoinCode()}
-          disabled={pairingBusy}
-          variant="secondary"
-        />
-      </AppCard>
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.label}>{t('settings.darkMode')}</Text>
+              <Text style={styles.helper}>
+                {preferences.themeMode === 'dark' ? t('settings.on') : t('settings.off')}
+              </Text>
+            </View>
+            <Switch
+              value={preferences.themeMode === 'dark'}
+              onValueChange={(value) => {
+                void setThemeMode(value ? 'dark' : 'light');
+              }}
+              trackColor={{ true: colors.primary, false: '#6a7471' }}
+              thumbColor={colors.surface}
+            />
+          </View>
 
-      <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
-      <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextGroup}>
+              <Text style={styles.label}>{t('settings.languageToggle')}</Text>
+              <Text style={styles.helper}>
+                {preferences.language === 'de' ? t('settings.language.de') : t('settings.language.en')}
+              </Text>
+            </View>
+            <Switch
+              value={preferences.language === 'de'}
+              onValueChange={(value) => {
+                void setLanguage(value ? 'de' : 'en');
+              }}
+              trackColor={{ true: colors.primary, false: '#6a7471' }}
+              thumbColor={colors.surface}
+            />
+          </View>
+
+          <Text style={styles.helper}>{t('settings.preferencesHint')}</Text>
+        </AppCard>
+
+        <AppCard style={styles.card}>
+          <AppInput
+            label={t('settings.reminderEveryMinutes')}
+            value={intervalInput}
+            onChangeText={setIntervalInput}
+            keyboardType="numeric"
+            accessibilityLabel={t('settings.reminderEveryMinutes')}
+          />
+
+          <View style={styles.switchRow}>
+            <Text style={styles.label}>{t('settings.enableReminders')}</Text>
+            <Switch
+              value={enabled}
+              onValueChange={setEnabled}
+              trackColor={{ true: colors.primary, false: '#6a7471' }}
+              thumbColor={colors.surface}
+            />
+          </View>
+
+          <Text style={styles.helper}>{t('settings.unitsFixed')}</Text>
+          <AppButton label={t('settings.saveSettings')} onPress={() => void onSave()} />
+        </AppCard>
+
+        <AppCard style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('settings.partnerPairing')}</Text>
+          <Text style={styles.helper}>
+            {t('settings.familyId')}: {profile.familyId ?? t('settings.notSet')}
+          </Text>
+
+          <AppButton
+            label={pairingBusy ? t('common.working') : t('settings.generateInviteCode')}
+            onPress={() => void onGenerateCode()}
+            disabled={pairingBusy}
+            variant="secondary"
+          />
+
+          {generatedCode ? (
+            <Text style={styles.inviteCode}>
+              {t('settings.inviteCode')}: {generatedCode}
+            </Text>
+          ) : null}
+
+          <AppInput
+            value={joinCode}
+            onChangeText={setJoinCode}
+            placeholder={t('settings.enterInviteCode')}
+            autoCapitalize="characters"
+          />
+
+          <AppButton
+            label={pairingBusy ? t('common.working') : t('settings.joinFamily')}
+            onPress={() => void onJoinCode()}
+            disabled={pairingBusy}
+            variant="secondary"
+          />
+        </AppCard>
+
+        <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
+        <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
+      </ScrollView>
     </Screen>
   );
 }
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
+    content: {
+      paddingBottom: 24
+    },
     title: {
       fontSize: 28,
       fontWeight: '700',

@@ -1,15 +1,11 @@
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
+import { AppInput } from '@/components/AppInput';
+import { StateMessage } from '@/components/StateMessage';
 import { useAuth } from '@/services/auth/AuthContext';
 import { colors } from '@/theme/colors';
 import { UserRole } from '@/types/models';
@@ -56,19 +52,26 @@ export function AuthScreen(): React.JSX.Element {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.helper}>Checking session...</Text>
+        <StateMessage
+          variant="loading"
+          title="Checking session..."
+          message="We are loading your account."
+        />
       </View>
     );
   }
 
   if (!isConfigured) {
     return (
-      <View style={styles.container}>
+      <View style={styles.configContainer}>
         <Text style={styles.title}>MilkySync</Text>
-        <Text style={styles.errorText}>
-          Supabase env vars are missing. Add values in `.env`, then restart Expo.
-        </Text>
+        <AppCard>
+          <StateMessage
+            variant="error"
+            title="Supabase is not configured"
+            message="Add the Supabase values in .env and restart Expo."
+          />
+        </AppCard>
       </View>
     );
   }
@@ -78,89 +81,83 @@ export function AuthScreen(): React.JSX.Element {
       <Text style={styles.title}>MilkySync</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'Welcome back' : 'Create your family account'}</Text>
 
-      <View style={styles.switchRow}>
-        <Pressable
-          onPress={() => setMode('login')}
-          style={[styles.switchChip, mode === 'login' && styles.switchChipActive]}
-        >
-          <Text style={[styles.switchChipText, mode === 'login' && styles.switchChipTextActive]}>Log In</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setMode('signup')}
-          style={[styles.switchChip, mode === 'signup' && styles.switchChipActive]}
-        >
-          <Text style={[styles.switchChipText, mode === 'signup' && styles.switchChipTextActive]}>Sign Up</Text>
-        </Pressable>
-      </View>
+      <AppCard style={styles.formCard}>
+        <View style={styles.switchRow}>
+          <Pressable
+            onPress={() => setMode('login')}
+            style={[styles.switchChip, mode === 'login' && styles.switchChipActive]}
+          >
+            <Text style={[styles.switchChipText, mode === 'login' && styles.switchChipTextActive]}>Log In</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setMode('signup')}
+            style={[styles.switchChip, mode === 'signup' && styles.switchChipActive]}
+          >
+            <Text style={[styles.switchChipText, mode === 'signup' && styles.switchChipTextActive]}>Sign Up</Text>
+          </Pressable>
+        </View>
 
-      {mode === 'signup' ? (
-        <>
-          <TextInput
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Display name"
-            style={styles.input}
-            autoCapitalize="words"
-          />
+        {mode === 'signup' ? (
+          <>
+            <AppInput
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Display name"
+              autoCapitalize="words"
+            />
+            <View style={styles.roleRow}>
+              {(['mother', 'partner', 'other'] as UserRole[]).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setRole(option)}
+                  style={[styles.roleChip, role === option && styles.roleChipActive]}
+                >
+                  <Text style={[styles.roleChipText, role === option && styles.roleChipTextActive]}>
+                    {option}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
 
-          <View style={styles.roleRow}>
-            {(['mother', 'partner', 'other'] as UserRole[]).map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => setRole(option)}
-                style={[styles.roleChip, role === option && styles.roleChipActive]}
-              >
-                <Text style={[styles.roleChipText, role === option && styles.roleChipTextActive]}>
-                  {option}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      ) : null}
-
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        style={styles.input}
-      />
-      <View style={styles.passwordWrapper}>
-        <TextInput
+        <AppInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <AppInput
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
           secureTextEntry={!showPassword}
-          style={styles.passwordInput}
+          rightAccessory={
+            <Pressable
+              onPress={() => setShowPassword((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+              hitSlop={8}
+              style={({ pressed }) => [styles.passwordToggle, pressed && styles.passwordTogglePressed]}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          }
         />
-        <Pressable
-          onPress={() => setShowPassword((current) => !current)}
-          accessibilityRole="button"
-          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-          hitSlop={8}
-          style={({ pressed }) => [styles.passwordToggle, pressed && styles.passwordTogglePressed]}
-        >
-          <Ionicons
-            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-            size={20}
-            color={colors.textSecondary}
-          />
-        </Pressable>
-      </View>
 
-      {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
+        {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
 
-      <Pressable
-        onPress={onSubmit}
-        disabled={submitting}
-        style={({ pressed }) => [styles.submitButton, pressed && styles.submitPressed]}
-      >
-        <Text style={styles.submitText}>
-          {submitting ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Create Account'}
-        </Text>
-      </Pressable>
+        <AppButton
+          onPress={onSubmit}
+          disabled={submitting}
+          label={submitting ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Create Account'}
+        />
+      </AppCard>
     </View>
   );
 }
@@ -170,14 +167,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
-    gap: 8
+    backgroundColor: colors.background
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
     backgroundColor: colors.background,
+    gap: 12
+  },
+  configContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: colors.background,
+    gap: 12
+  },
+  formCard: {
     gap: 12
   },
   title: {
@@ -213,33 +219,6 @@ const styles = StyleSheet.create({
   switchChipTextActive: {
     color: '#ffffff'
   },
-  input: {
-    minHeight: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: colors.textPrimary
-  },
-  passwordWrapper: {
-    minHeight: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 8
-  },
-  passwordInput: {
-    flex: 1,
-    minHeight: 50,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: colors.textPrimary
-  },
   passwordToggle: {
     minWidth: 40,
     minHeight: 40,
@@ -274,25 +253,6 @@ const styles = StyleSheet.create({
   },
   roleChipTextActive: {
     color: colors.primary
-  },
-  submitButton: {
-    minHeight: 50,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  submitPressed: {
-    opacity: 0.85
-  },
-  submitText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700'
-  },
-  helper: {
-    color: colors.textSecondary,
-    fontSize: 15
   },
   errorText: {
     color: colors.danger,

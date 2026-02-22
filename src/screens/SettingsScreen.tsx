@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { AppButton } from '@/components/AppButton';
+import { AppCard } from '@/components/AppCard';
+import { AppInput } from '@/components/AppInput';
 import { Screen } from '@/components/Screen';
+import { StateMessage } from '@/components/StateMessage';
 import { useAuth } from '@/services/auth/AuthContext';
 import { familyService } from '@/services/family/FamilyService';
 import { useAppData } from '@/state/AppDataContext';
@@ -9,7 +13,7 @@ import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 
 export function SettingsScreen(): React.JSX.Element {
-  const { reminderSettings, saveReminderSettings, profile, syncNow } = useAppData();
+  const { reminderSettings, saveReminderSettings, profile, syncNow, loading } = useAppData();
   const { signOut, refreshProfile, sessionUserId } = useAuth();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
@@ -93,23 +97,36 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  if (loading) {
+    return (
+      <Screen>
+        <AppCard>
+          <StateMessage
+            variant="loading"
+            title="Loading settings..."
+            message="We are preparing your account settings."
+          />
+        </AppCard>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <Text style={styles.title}>Settings</Text>
 
-      <View style={styles.card}>
+      <AppCard style={styles.card}>
         <Text style={styles.label}>Logged in as</Text>
         <Text style={styles.helper}>{profile.email}</Text>
         <Text style={styles.helper}>Role: {profile.role}</Text>
-      </View>
+      </AppCard>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Reminder every (minutes)</Text>
-        <TextInput
+      <AppCard style={styles.card}>
+        <AppInput
+          label="Reminder every (minutes)"
           value={intervalInput}
           onChangeText={setIntervalInput}
           keyboardType="numeric"
-          style={styles.input}
           accessibilityLabel="Reminder interval in minutes"
         />
 
@@ -123,66 +140,39 @@ export function SettingsScreen(): React.JSX.Element {
         </View>
 
         <Text style={styles.helper}>Units: ml (fixed for MVP)</Text>
+        <AppButton label="Save Settings" onPress={() => void onSave()} />
+      </AppCard>
 
-        <Pressable
-          onPress={onSave}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.saveButton, pressed && styles.savePressed]}
-        >
-          <Text style={styles.saveText}>Save Settings</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.card}>
+      <AppCard style={styles.card}>
         <Text style={styles.sectionTitle}>Partner Pairing</Text>
         <Text style={styles.helper}>Family ID: {profile.familyId ?? 'Not set'}</Text>
 
-        <Pressable
-          onPress={onGenerateCode}
+        <AppButton
+          label={pairingBusy ? 'Working...' : 'Generate Invite Code'}
+          onPress={() => void onGenerateCode()}
           disabled={pairingBusy}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
-        >
-          <Text style={styles.secondaryText}>
-            {pairingBusy ? 'Working...' : 'Generate Invite Code'}
-          </Text>
-        </Pressable>
+          variant="secondary"
+        />
 
         {generatedCode ? <Text style={styles.inviteCode}>Invite Code: {generatedCode}</Text> : null}
 
-        <TextInput
+        <AppInput
           value={joinCode}
           onChangeText={setJoinCode}
           placeholder="Enter invite code"
           autoCapitalize="characters"
-          style={styles.input}
         />
 
-        <Pressable
-          onPress={onJoinCode}
+        <AppButton
+          label={pairingBusy ? 'Working...' : 'Join Family'}
+          onPress={() => void onJoinCode()}
           disabled={pairingBusy}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
-        >
-          <Text style={styles.secondaryText}>{pairingBusy ? 'Working...' : 'Join Family'}</Text>
-        </Pressable>
-      </View>
+          variant="secondary"
+        />
+      </AppCard>
 
-      <Pressable
-        onPress={onSyncNow}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.secondaryButton, pressed && styles.savePressed]}
-      >
-        <Text style={styles.secondaryText}>Sync Now</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={onSignOut}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.logoutButton, pressed && styles.savePressed]}
-      >
-        <Text style={styles.logoutText}>Log Out</Text>
-      </Pressable>
+      <AppButton label="Sync Now" onPress={() => void onSyncNow()} variant="secondary" />
+      <AppButton label="Log Out" onPress={() => void onSignOut()} variant="danger" />
     </Screen>
   );
 }
@@ -195,11 +185,6 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   card: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    padding: 14,
     gap: 10,
     marginBottom: 12
   },
@@ -213,16 +198,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '600'
   },
-  input: {
-    minHeight: 50,
-    borderRadius: 12,
-    borderColor: colors.border,
-    borderWidth: 1,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    color: colors.textPrimary,
-    fontSize: 16
-  },
   switchRow: {
     minHeight: 50,
     alignItems: 'center',
@@ -233,51 +208,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14
   },
-  saveButton: {
-    minHeight: 50,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  secondaryButton: {
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  secondaryText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '700'
-  },
   inviteCode: {
     color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: 1.2
-  },
-  savePressed: {
-    opacity: 0.85
-  },
-  saveText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700'
-  },
-  logoutButton: {
-    minHeight: 50,
-    borderRadius: 12,
-    backgroundColor: '#c35b5b',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700'
   }
 });

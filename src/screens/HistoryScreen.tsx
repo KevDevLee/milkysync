@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { FlatList, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
+import { StateMessage } from '@/components/StateMessage';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
-import { PumpSession } from '@/types/models';
 import { formatDateTime, startOfLocalDay } from '@/utils/date';
 import { formatPumpDuration } from '@/utils/timer';
 
@@ -189,10 +190,11 @@ function buildYAxisTicks(axisMax: number): number[] {
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, dailyTotalMl } = useAppData();
+  const { sessions, dailyTotalMl, loading, refresh } = useAppData();
   const [selectedRange, setSelectedRange] = useState<TrendRange>('day');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -360,6 +362,47 @@ export function HistoryScreen(): React.JSX.Element {
 
   const canGoForward = selectedRange !== 'all' && periodOffset < 0;
 
+  const onRetry = async (): Promise<void> => {
+    try {
+      setRefreshError(null);
+      await refresh();
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : 'Could not refresh history.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Screen>
+        <AppCard>
+          <StateMessage
+            variant="loading"
+            title="Loading history..."
+            message="We are preparing your sessions and trends."
+          />
+        </AppCard>
+      </Screen>
+    );
+  }
+
+  if (refreshError) {
+    return (
+      <Screen>
+        <AppCard>
+          <StateMessage
+            variant="error"
+            title="Could not load history"
+            message={refreshError}
+            actionLabel="Try again"
+            onAction={() => {
+              void onRetry();
+            }}
+          />
+        </AppCard>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <FlatList
@@ -369,12 +412,12 @@ export function HistoryScreen(): React.JSX.Element {
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         ListHeaderComponent={
           <>
-            <View style={styles.headerCard}>
+            <AppCard style={styles.headerCard}>
               <Text style={styles.headerLabel}>Today total</Text>
               <Text style={styles.headerValue}>{dailyTotalMl} ml</Text>
-            </View>
+            </AppCard>
 
-            <View style={styles.chartCard}>
+            <AppCard style={styles.chartCard}>
               <Text style={styles.chartTitle}>Pump Trend</Text>
 
               <View style={styles.periodRow}>
@@ -498,14 +541,22 @@ export function HistoryScreen(): React.JSX.Element {
                   </Text>
                 </>
               )}
-            </View>
+            </AppCard>
 
             <Text style={styles.listHeading}>Sessions</Text>
           </>
         }
-        ListEmptyComponent={<Text style={styles.empty}>No sessions yet. Add one from Start.</Text>}
+        ListEmptyComponent={
+          <AppCard>
+            <StateMessage
+              variant="empty"
+              title="No sessions yet"
+              message="Add your first session from the Start tab."
+            />
+          </AppCard>
+        }
         renderItem={({ item }) => (
-          <View style={styles.itemCard}>
+          <AppCard style={styles.itemCard}>
             <Text style={styles.itemTotal}>{item.totalMl} ml</Text>
             <Text style={styles.itemDetail}>
               L {item.leftMl} ml • R {item.rightMl} ml • {formatDateTime(item.timestamp)}
@@ -514,7 +565,7 @@ export function HistoryScreen(): React.JSX.Element {
               <Text style={styles.itemDetail}>Duration {formatPumpDuration(item.durationSeconds)}</Text>
             ) : null}
             {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
-          </View>
+          </AppCard>
         )}
       />
     </Screen>
@@ -523,11 +574,6 @@ export function HistoryScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   headerCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: 14,
     marginBottom: 12,
     gap: 2
   },
@@ -542,10 +588,6 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   },
   chartCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     padding: 12,
     marginBottom: 12,
     gap: 10
@@ -699,10 +741,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24
   },
   itemCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
     padding: 12,
     gap: 4
   },
@@ -718,11 +756,5 @@ const styles = StyleSheet.create({
   itemNote: {
     color: colors.textPrimary,
     fontSize: 14
-  },
-  empty: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 16
   }
 });

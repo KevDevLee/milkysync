@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -16,19 +17,47 @@ import { AppTabsParamList, AuthStackParamList } from './types';
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 const Tabs = createBottomTabNavigator<AppTabsParamList>();
 
+function tabIconNameForRoute(routeName: keyof AppTabsParamList, focused: boolean): keyof typeof Ionicons.glyphMap {
+  if (routeName === 'AddSession') {
+    return focused ? 'timer' : 'timer-outline';
+  }
+  if (routeName === 'Overview') {
+    return focused ? 'speedometer' : 'speedometer-outline';
+  }
+  if (routeName === 'History') {
+    return focused ? 'analytics' : 'analytics-outline';
+  }
+  return focused ? 'settings' : 'settings-outline';
+}
+
 function AppTabs(): React.JSX.Element {
   return (
     <Tabs.Navigator
       initialRouteName="AddSession"
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#2f6b62',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600'
+        },
         tabBarStyle: {
-          height: 62,
+          height: 70,
           paddingBottom: 8,
-          paddingTop: 6
-        }
-      }}
+          paddingTop: 8,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          backgroundColor: colors.surface
+        },
+        tabBarIcon: ({ focused, color, size }) => (
+          <Ionicons
+            name={tabIconNameForRoute(route.name, focused)}
+            color={color}
+            size={size + 1}
+          />
+        )
+      })}
     >
       <Tabs.Screen name="AddSession" component={AddSessionScreen} options={{ title: 'Start' }} />
       <Tabs.Screen name="Overview" component={DashboardScreen} options={{ title: 'Overview' }} />

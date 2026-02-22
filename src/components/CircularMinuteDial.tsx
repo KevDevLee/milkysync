@@ -27,7 +27,7 @@ const TRACK_RADIUS = (RING_OUTER_SIZE + RING_INNER_SIZE) / 4;
 const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
-const TRACK_TOUCH_PADDING = 28;
+const TRACK_TOUCH_PADDING = 0;
 const MAX_DELTA_DEGREES_PER_EVENT = 14;
 
 function clamp(value: number, min: number, max: number): number {
@@ -159,8 +159,10 @@ export function CircularMinuteDial({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
-        onMoveShouldSetPanResponder: () => !disabled,
+        onStartShouldSetPanResponder: (event) =>
+          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
+        onMoveShouldSetPanResponder: (event) =>
+          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
         onPanResponderGrant: (event) => {
           if (disabled) {
             return;

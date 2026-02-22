@@ -27,8 +27,13 @@ import { formatDateTime, formatRelativeDuration } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
 
 const MIN_SELECTABLE_MINUTES = 1;
-const MAX_SELECTABLE_MINUTES = 120;
-const MINUTE_OPTIONS = Array.from({ length: MAX_SELECTABLE_MINUTES + 1 }, (_, index) => index);
+const MAX_SESSION_TIMER_MINUTES = 360;
+const MAX_NEXT_ROUND_TIMER_MINUTES = 360;
+const SESSION_MINUTE_OPTIONS = Array.from({ length: MAX_SESSION_TIMER_MINUTES + 1 }, (_, index) => index);
+const NEXT_ROUND_MINUTE_OPTIONS = Array.from(
+  { length: MAX_NEXT_ROUND_TIMER_MINUTES + 1 },
+  (_, index) => index
+);
 const MINUTE_ITEM_HEIGHT = 72;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
@@ -62,7 +67,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const nextRoundWheelMomentumRef = useRef(false);
   const nextRoundDefaultMinutes = Math.max(
     MIN_SELECTABLE_MINUTES,
-    Math.min(MAX_SELECTABLE_MINUTES, reminderSettings.intervalMinutes || DEFAULT_TIMER_MINUTES)
+    Math.min(MAX_NEXT_ROUND_TIMER_MINUTES, reminderSettings.intervalMinutes || DEFAULT_TIMER_MINUTES)
   );
 
   useEffect(() => {
@@ -87,7 +92,7 @@ export function AddSessionScreen(): React.JSX.Element {
     }
 
     const timer = setTimeout(() => {
-      const minuteIndex = MINUTE_OPTIONS.indexOf(nextRoundMinutes);
+      const minuteIndex = NEXT_ROUND_MINUTE_OPTIONS.indexOf(nextRoundMinutes);
       if (minuteIndex < 0) {
         return;
       }
@@ -137,9 +142,9 @@ export function AddSessionScreen(): React.JSX.Element {
     return Math.max(targetDurationSeconds - elapsedSeconds, 0);
   };
 
-  const getNearestMinuteIndex = (offsetY: number): number => {
+  const getNearestMinuteIndex = (offsetY: number, maxIndex: number): number => {
     const roughIndex = Math.round(offsetY / MINUTE_ITEM_HEIGHT);
-    return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, MINUTE_OPTIONS.length - 1));
+    return Math.max(MIN_SELECTABLE_MINUTES, Math.min(roughIndex, maxIndex));
   };
 
   const onMinutesScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -148,8 +153,8 @@ export function AddSessionScreen(): React.JSX.Element {
     }
 
     const offsetY = event.nativeEvent.contentOffset.y;
-    const nextMinuteIndex = getNearestMinuteIndex(offsetY);
-    const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
+    const nextMinuteIndex = getNearestMinuteIndex(offsetY, SESSION_MINUTE_OPTIONS.length - 1);
+    const nextMinutes = SESSION_MINUTE_OPTIONS[nextMinuteIndex] ?? selectedMinutes;
     setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
     if (nextMinuteIndex === MIN_SELECTABLE_MINUTES) {
       minuteWheelRef.current?.scrollTo({
@@ -163,8 +168,8 @@ export function AddSessionScreen(): React.JSX.Element {
   const onNextRoundMinutesScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
       const offsetY = event.nativeEvent.contentOffset.y;
-      const nextMinuteIndex = getNearestMinuteIndex(offsetY);
-      const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? nextRoundMinutes;
+      const nextMinuteIndex = getNearestMinuteIndex(offsetY, NEXT_ROUND_MINUTE_OPTIONS.length - 1);
+      const nextMinutes = NEXT_ROUND_MINUTE_OPTIONS[nextMinuteIndex] ?? nextRoundMinutes;
       setNextRoundMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
       if (nextMinuteIndex === MIN_SELECTABLE_MINUTES) {
         nextRoundWheelRef.current?.scrollTo({
@@ -189,8 +194,8 @@ export function AddSessionScreen(): React.JSX.Element {
         if (
           Number.isFinite(parsed) &&
           parsed >= MIN_SELECTABLE_MINUTES &&
-          parsed <= MAX_SELECTABLE_MINUTES &&
-          MINUTE_OPTIONS.includes(parsed)
+          parsed <= MAX_SESSION_TIMER_MINUTES &&
+          SESSION_MINUTE_OPTIONS.includes(parsed)
         ) {
           minutes = parsed;
         }
@@ -205,7 +210,7 @@ export function AddSessionScreen(): React.JSX.Element {
       setSelectedMinutes(minutes);
       minuteWheelRef.current?.scrollTo({
         x: 0,
-        y: MINUTE_OPTIONS.indexOf(minutes) * MINUTE_ITEM_HEIGHT,
+        y: SESSION_MINUTE_OPTIONS.indexOf(minutes) * MINUTE_ITEM_HEIGHT,
         animated: false
       });
       setTimerMinutesLoaded(true);
@@ -235,7 +240,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
   const minuteWheelItems = useMemo(
     () =>
-      MINUTE_OPTIONS.map((item) => (
+      SESSION_MINUTE_OPTIONS.map((item) => (
         <View key={item} style={styles.minuteWheelItem}>
           <Text
             style={[
@@ -251,7 +256,7 @@ export function AddSessionScreen(): React.JSX.Element {
   );
   const nextRoundMinuteWheelItems = useMemo(
     () =>
-      MINUTE_OPTIONS.map((item) => (
+      NEXT_ROUND_MINUTE_OPTIONS.map((item) => (
         <View key={`next-round-${item}`} style={styles.modalMinuteWheelItem}>
           <Text
             style={[
@@ -271,7 +276,7 @@ export function AddSessionScreen(): React.JSX.Element {
       return;
     }
 
-    const minuteIndex = MINUTE_OPTIONS.indexOf(wheelMinuteValue);
+    const minuteIndex = SESSION_MINUTE_OPTIONS.indexOf(wheelMinuteValue);
     if (minuteIndex < 0) {
       return;
     }
@@ -284,7 +289,7 @@ export function AddSessionScreen(): React.JSX.Element {
   }, [timerMinutesLoaded, wheelMinuteValue]);
 
   const startFreshTimer = (minutes: number): void => {
-    const safeMinutes = Math.max(MIN_SELECTABLE_MINUTES, Math.min(MAX_SELECTABLE_MINUTES, minutes));
+    const safeMinutes = Math.max(MIN_SELECTABLE_MINUTES, Math.min(MAX_NEXT_ROUND_TIMER_MINUTES, minutes));
     const selectedSeconds = safeMinutes * 60;
 
     setSelectedMinutes(safeMinutes);
@@ -886,37 +891,39 @@ function createStyles(colors: AppColors) {
     fontWeight: '700'
   },
   modalActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
+    flexDirection: 'column',
+    gap: 8,
     marginTop: 4
   },
   modalPrimaryButton: {
-    flex: 1,
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: 12,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    paddingHorizontal: 12
   },
   modalPrimaryButtonText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 15
+    fontSize: 15,
+    textAlign: 'center'
   },
   modalSecondaryButton: {
-    flex: 1,
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12
   },
   modalSecondaryButtonText: {
     color: colors.primary,
     fontWeight: '700',
-    fontSize: 15
+    fontSize: 15,
+    textAlign: 'center'
   }
   });
 }

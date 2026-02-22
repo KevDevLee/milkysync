@@ -1,5 +1,7 @@
+import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
+
 export function formatDateTime(timestamp: number): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -8,7 +10,7 @@ export function formatDateTime(timestamp: number): string {
 }
 
 export function formatTime(timestamp: number): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
     hour: 'numeric',
     minute: '2-digit'
   }).format(new Date(timestamp));
@@ -32,11 +34,19 @@ export function formatRelativeDuration(targetTimestamp: number, now: number): st
   const minutes = Math.floor(absMs / 60000);
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  const chunk = hours > 0 ? `${hours}h ${remainingMinutes}m` : `${minutes}m`;
+  const language = getCurrentLanguage();
+  const chunk =
+    hours > 0
+      ? language === 'de'
+        ? `${hours} Std. ${remainingMinutes} Min.`
+        : `${hours}h ${remainingMinutes}m`
+      : language === 'de'
+        ? `${minutes} Min.`
+        : `${minutes}m`;
 
   if (diffMs >= 0) {
-    return `in ${chunk}`;
+    return language === 'de' ? `in ${chunk}` : `in ${chunk}`;
   }
 
-  return `${chunk} ago`;
+  return language === 'de' ? `vor ${chunk}` : `${chunk} ago`;
 }

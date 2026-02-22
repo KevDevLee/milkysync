@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 
 type AppButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -23,6 +24,9 @@ export function AppButton({
   labelStyle,
   accessibilityLabel
 }: AppButtonProps): React.JSX.Element {
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable
       onPress={onPress}
@@ -54,46 +58,48 @@ export function AppButton({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 50,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14
-  },
-  pressed: {
-    opacity: 0.86
-  },
-  disabled: {
-    opacity: 0.55
-  },
-  primary: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-    borderWidth: 1
-  },
-  secondary: {
-    backgroundColor: colors.surface,
-    borderColor: colors.primary,
-    borderWidth: 1
-  },
-  danger: {
-    backgroundColor: colors.danger,
-    borderColor: colors.danger,
-    borderWidth: 1
-  },
-  baseLabel: {
-    fontSize: 16,
-    fontWeight: '700'
-  },
-  primaryLabel: {
-    color: '#fff'
-  },
-  secondaryLabel: {
-    color: colors.primary
-  },
-  dangerLabel: {
-    color: '#fff'
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    base: {
+      minHeight: 50,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14
+    },
+    pressed: {
+      opacity: 0.86
+    },
+    disabled: {
+      opacity: 0.55
+    },
+    primary: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+      borderWidth: 1
+    },
+    secondary: {
+      backgroundColor: colors.surface,
+      borderColor: colors.primary,
+      borderWidth: 1
+    },
+    danger: {
+      backgroundColor: colors.danger,
+      borderColor: colors.danger,
+      borderWidth: 1
+    },
+    baseLabel: {
+      fontSize: 16,
+      fontWeight: '700'
+    },
+    primaryLabel: {
+      color: '#fff'
+    },
+    secondaryLabel: {
+      color: colors.primary
+    },
+    dangerLabel: {
+      color: '#fff'
+    }
+  });
+}

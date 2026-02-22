@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/AppButton';
@@ -6,27 +6,26 @@ import { AppCard } from '@/components/AppCard';
 import { AppInput } from '@/components/AppInput';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
+import { useI18n } from '@/i18n/useI18n';
 import { useAuth } from '@/services/auth/AuthContext';
 import { familyService } from '@/services/family/FamilyService';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile, syncNow, loading } = useAppData();
   const { signOut, refreshProfile, sessionUserId } = useAuth();
-  const {
-    preferences,
-    loading: preferencesLoading,
-    setThemeMode,
-    setLanguage
-  } = useAppPreferences();
+  const { preferences, loading: preferencesLoading, setThemeMode, setLanguage } = useAppPreferences();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { t } = useI18n();
 
   useEffect(() => {
     setIntervalInput(String(reminderSettings.intervalMinutes));
@@ -38,15 +37,15 @@ export function SettingsScreen(): React.JSX.Element {
 
     try {
       await saveReminderSettings({ intervalMinutes, enabled });
-      Alert.alert('Saved', 'Reminder settings updated.');
+      Alert.alert(t('common.saved'), t('settings.savedReminderMessage'));
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Could not save settings.'));
+      Alert.alert(t('common.error'), reportError(error, t('settings.saveError')));
     }
   };
 
   const onGenerateCode = async (): Promise<void> => {
     if (!profile.familyId || !sessionUserId) {
-      Alert.alert('Unavailable', 'No family/user context available.');
+      Alert.alert(t('settings.unavailableTitle'), t('settings.unavailableContext'));
       return;
     }
 
@@ -58,7 +57,7 @@ export function SettingsScreen(): React.JSX.Element {
       });
       setGeneratedCode(code);
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Could not generate invite code.'));
+      Alert.alert(t('common.error'), reportError(error, t('settings.generateCodeError')));
     } finally {
       setPairingBusy(false);
     }
@@ -66,7 +65,7 @@ export function SettingsScreen(): React.JSX.Element {
 
   const onJoinCode = async (): Promise<void> => {
     if (!sessionUserId || !joinCode.trim()) {
-      Alert.alert('Validation', 'Enter an invite code to join a family.');
+      Alert.alert(t('settings.validationTitle'), t('settings.validationJoinCode'));
       return;
     }
 
@@ -78,10 +77,10 @@ export function SettingsScreen(): React.JSX.Element {
       });
       await refreshProfile();
       await syncNow();
-      Alert.alert('Success', 'You are now paired with the family.');
+      Alert.alert(t('common.saved'), t('settings.joinFamilySuccess'));
       setJoinCode('');
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Could not join family.'));
+      Alert.alert(t('common.error'), reportError(error, t('settings.joinFamilyError')));
     } finally {
       setPairingBusy(false);
     }
@@ -91,16 +90,16 @@ export function SettingsScreen(): React.JSX.Element {
     try {
       await signOut();
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Could not sign out.'));
+      Alert.alert(t('common.error'), reportError(error, t('settings.signOutError')));
     }
   };
 
   const onSyncNow = async (): Promise<void> => {
     try {
       await syncNow();
-      Alert.alert('Synced', 'Local and cloud data are in sync.');
+      Alert.alert(t('settings.syncSuccessTitle'), t('settings.syncSuccessMessage'));
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Sync failed.'));
+      Alert.alert(t('common.error'), reportError(error, t('settings.syncError')));
     }
   };
 
@@ -110,8 +109,8 @@ export function SettingsScreen(): React.JSX.Element {
         <AppCard>
           <StateMessage
             variant="loading"
-            title="Loading settings..."
-            message="We are preparing your account and app settings."
+            title={t('settings.loadingTitle')}
+            message={t('settings.loadingMessage')}
           />
         </AppCard>
       </Screen>
@@ -120,22 +119,24 @@ export function SettingsScreen(): React.JSX.Element {
 
   return (
     <Screen>
-      <Text style={styles.title}>Settings</Text>
+      <Text style={styles.title}>{t('settings.title')}</Text>
 
       <AppCard style={styles.card}>
-        <Text style={styles.label}>Logged in as</Text>
+        <Text style={styles.label}>{t('settings.loggedInAs')}</Text>
         <Text style={styles.helper}>{profile.email}</Text>
-        <Text style={styles.helper}>Role: {profile.role}</Text>
+        <Text style={styles.helper}>
+          {t('settings.role')}: {profile.role}
+        </Text>
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.sectionTitle}>App Preferences</Text>
+        <Text style={styles.sectionTitle}>{t('settings.appPreferences')}</Text>
 
         <View style={styles.switchRow}>
           <View style={styles.switchTextGroup}>
-            <Text style={styles.label}>Dark mode</Text>
+            <Text style={styles.label}>{t('settings.darkMode')}</Text>
             <Text style={styles.helper}>
-              {preferences.themeMode === 'dark' ? 'On' : 'Off'}
+              {preferences.themeMode === 'dark' ? t('settings.on') : t('settings.off')}
             </Text>
           </View>
           <Switch
@@ -143,15 +144,16 @@ export function SettingsScreen(): React.JSX.Element {
             onValueChange={(value) => {
               void setThemeMode(value ? 'dark' : 'light');
             }}
-            trackColor={{ true: colors.primary, false: '#d4d8d7' }}
+            trackColor={{ true: colors.primary, false: '#6a7471' }}
+            thumbColor={colors.surface}
           />
         </View>
 
         <View style={styles.switchRow}>
           <View style={styles.switchTextGroup}>
-            <Text style={styles.label}>Language (DE / EN)</Text>
+            <Text style={styles.label}>{t('settings.languageToggle')}</Text>
             <Text style={styles.helper}>
-              {preferences.language === 'de' ? 'Deutsch' : 'English'}
+              {preferences.language === 'de' ? t('settings.language.de') : t('settings.language.en')}
             </Text>
           </View>
           <Switch
@@ -159,110 +161,118 @@ export function SettingsScreen(): React.JSX.Element {
             onValueChange={(value) => {
               void setLanguage(value ? 'de' : 'en');
             }}
-            trackColor={{ true: colors.primary, false: '#d4d8d7' }}
+            trackColor={{ true: colors.primary, false: '#6a7471' }}
+            thumbColor={colors.surface}
           />
         </View>
 
-        <Text style={styles.helper}>
-          Preferences are saved locally. Full app-wide dark mode and translations can be connected next.
-        </Text>
+        <Text style={styles.helper}>{t('settings.preferencesHint')}</Text>
       </AppCard>
 
       <AppCard style={styles.card}>
         <AppInput
-          label="Reminder every (minutes)"
+          label={t('settings.reminderEveryMinutes')}
           value={intervalInput}
           onChangeText={setIntervalInput}
           keyboardType="numeric"
-          accessibilityLabel="Reminder interval in minutes"
+          accessibilityLabel={t('settings.reminderEveryMinutes')}
         />
 
         <View style={styles.switchRow}>
-          <Text style={styles.label}>Enable reminders</Text>
+          <Text style={styles.label}>{t('settings.enableReminders')}</Text>
           <Switch
             value={enabled}
             onValueChange={setEnabled}
-            trackColor={{ true: colors.primary, false: '#d4d8d7' }}
+            trackColor={{ true: colors.primary, false: '#6a7471' }}
+            thumbColor={colors.surface}
           />
         </View>
 
-        <Text style={styles.helper}>Units: ml (fixed for MVP)</Text>
-        <AppButton label="Save Settings" onPress={() => void onSave()} />
+        <Text style={styles.helper}>{t('settings.unitsFixed')}</Text>
+        <AppButton label={t('settings.saveSettings')} onPress={() => void onSave()} />
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.sectionTitle}>Partner Pairing</Text>
-        <Text style={styles.helper}>Family ID: {profile.familyId ?? 'Not set'}</Text>
+        <Text style={styles.sectionTitle}>{t('settings.partnerPairing')}</Text>
+        <Text style={styles.helper}>
+          {t('settings.familyId')}: {profile.familyId ?? t('settings.notSet')}
+        </Text>
 
         <AppButton
-          label={pairingBusy ? 'Working...' : 'Generate Invite Code'}
+          label={pairingBusy ? t('common.working') : t('settings.generateInviteCode')}
           onPress={() => void onGenerateCode()}
           disabled={pairingBusy}
           variant="secondary"
         />
 
-        {generatedCode ? <Text style={styles.inviteCode}>Invite Code: {generatedCode}</Text> : null}
+        {generatedCode ? (
+          <Text style={styles.inviteCode}>
+            {t('settings.inviteCode')}: {generatedCode}
+          </Text>
+        ) : null}
 
         <AppInput
           value={joinCode}
           onChangeText={setJoinCode}
-          placeholder="Enter invite code"
+          placeholder={t('settings.enterInviteCode')}
           autoCapitalize="characters"
         />
 
         <AppButton
-          label={pairingBusy ? 'Working...' : 'Join Family'}
+          label={pairingBusy ? t('common.working') : t('settings.joinFamily')}
           onPress={() => void onJoinCode()}
           disabled={pairingBusy}
           variant="secondary"
         />
       </AppCard>
 
-      <AppButton label="Sync Now" onPress={() => void onSyncNow()} variant="secondary" />
-      <AppButton label="Log Out" onPress={() => void onSignOut()} variant="danger" />
+      <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
+      <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 12
-  },
-  card: {
-    gap: 10,
-    marginBottom: 12
-  },
-  sectionTitle: {
-    fontSize: 18,
-    color: colors.textPrimary,
-    fontWeight: '700'
-  },
-  label: {
-    fontSize: 15,
-    color: colors.textPrimary,
-    fontWeight: '600'
-  },
-  switchRow: {
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-    gap: 12
-  },
-  switchTextGroup: {
-    flex: 1
-  },
-  helper: {
-    color: colors.textSecondary,
-    fontSize: 14
-  },
-  inviteCode: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 1.2
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      color: colors.textPrimary,
+      marginBottom: 12
+    },
+    card: {
+      gap: 10,
+      marginBottom: 12
+    },
+    sectionTitle: {
+      fontSize: 18,
+      color: colors.textPrimary,
+      fontWeight: '700'
+    },
+    label: {
+      fontSize: 15,
+      color: colors.textPrimary,
+      fontWeight: '600'
+    },
+    switchRow: {
+      minHeight: 50,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexDirection: 'row',
+      gap: 12
+    },
+    switchTextGroup: {
+      flex: 1
+    },
+    helper: {
+      color: colors.textSecondary,
+      fontSize: 14
+    },
+    inviteCode: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      fontWeight: '700',
+      letterSpacing: 1.2
+    }
+  });
+}

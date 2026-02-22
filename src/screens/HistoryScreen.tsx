@@ -4,8 +4,10 @@ import { FlatList, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from '
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
+import { getCurrentIntlLocale } from '@/i18n/locale';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppData } from '@/state/AppDataContext';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors, colors as staticColors } from '@/theme/colors';
 import { formatDateTime, startOfLocalDay } from '@/utils/date';
 import { formatPumpDuration } from '@/utils/timer';
 
@@ -46,17 +48,17 @@ type TrendSample = {
   totalMl: number;
 };
 
-const RANGE_OPTIONS: Array<{ key: TrendRange; label: string }> = [
-  { key: 'day', label: 'Day' },
-  { key: 'week', label: 'Week' },
-  { key: 'month', label: 'Month' },
-  { key: 'all', label: 'Alltime' }
+const RANGE_OPTIONS: Array<{ key: TrendRange }> = [
+  { key: 'day' },
+  { key: 'week' },
+  { key: 'month' },
+  { key: 'all' }
 ];
 
 const METRIC_DEFS: Array<{ key: TrendMetric; label: string; color: string }> = [
-  { key: 'left', label: 'Left', color: colors.primary },
-  { key: 'right', label: 'Right', color: colors.danger },
-  { key: 'total', label: 'Total', color: colors.accent }
+  { key: 'left', label: 'Left', color: staticColors.primary },
+  { key: 'right', label: 'Right', color: staticColors.danger },
+  { key: 'total', label: 'Total', color: staticColors.accent }
 ];
 
 const CHART_HEIGHT = 220;
@@ -100,7 +102,7 @@ function formatRangeTitle(range: TrendRange, bounds: RangeBounds): string {
   }
 
   if (range === 'day') {
-    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(bounds.start));
+    const weekday = new Intl.DateTimeFormat(getCurrentIntlLocale(), { weekday: 'long' }).format(new Date(bounds.start));
     return `${weekday}, ${formatShortDate(bounds.start)}`;
   }
 
@@ -109,23 +111,19 @@ function formatRangeTitle(range: TrendRange, bounds: RangeBounds): string {
     return `${formatShortDate(bounds.start)} - ${formatShortDate(endTimestamp)}`;
   }
 
-  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(bounds.start));
+  const monthLabel = new Intl.DateTimeFormat(getCurrentIntlLocale(), { month: 'long' }).format(new Date(bounds.start));
   const yearShort = String(new Date(bounds.start).getFullYear()).slice(-2);
   return `${monthLabel} '${yearShort}`;
 }
 
-function getXAxisLabel(range: TrendRange): string {
-  return range === 'day' ? 'Time' : 'Date';
-}
-
 function formatRangeBoundary(timestamp: number, range: TrendRange): string {
   if (range === 'day') {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
       hour: 'numeric',
       minute: '2-digit'
     }).format(new Date(timestamp));
   }
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
     month: 'short',
     day: 'numeric'
   }).format(new Date(timestamp));
@@ -191,6 +189,9 @@ function buildYAxisTicks(axisMax: number): number[] {
 
 export function HistoryScreen(): React.JSX.Element {
   const { sessions, dailyTotalMl, loading, refresh } = useAppData();
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { t } = useI18n();
   const [selectedRange, setSelectedRange] = useState<TrendRange>('day');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
@@ -367,7 +368,7 @@ export function HistoryScreen(): React.JSX.Element {
       setRefreshError(null);
       await refresh();
     } catch (error) {
-      setRefreshError(error instanceof Error ? error.message : 'Could not refresh history.');
+      setRefreshError(error instanceof Error ? error.message : t('history.errorTitle'));
     }
   };
 
@@ -377,8 +378,8 @@ export function HistoryScreen(): React.JSX.Element {
         <AppCard>
           <StateMessage
             variant="loading"
-            title="Loading history..."
-            message="We are preparing your sessions and trends."
+            title={t('history.loadingTitle')}
+            message={t('history.loadingMessage')}
           />
         </AppCard>
       </Screen>
@@ -391,9 +392,9 @@ export function HistoryScreen(): React.JSX.Element {
         <AppCard>
           <StateMessage
             variant="error"
-            title="Could not load history"
+            title={t('history.errorTitle')}
             message={refreshError}
-            actionLabel="Try again"
+            actionLabel={t('common.tryAgain')}
             onAction={() => {
               void onRetry();
             }}
@@ -413,12 +414,12 @@ export function HistoryScreen(): React.JSX.Element {
         ListHeaderComponent={
           <>
             <AppCard style={styles.headerCard}>
-              <Text style={styles.headerLabel}>Today total</Text>
+              <Text style={styles.headerLabel}>{t('history.todayTotal')}</Text>
               <Text style={styles.headerValue}>{dailyTotalMl} ml</Text>
             </AppCard>
 
             <AppCard style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Pump Trend</Text>
+              <Text style={styles.chartTitle}>{t('history.pumpTrend')}</Text>
 
               <View style={styles.periodRow}>
                 <Pressable
@@ -432,7 +433,7 @@ export function HistoryScreen(): React.JSX.Element {
                   accessibilityRole="button"
                   disabled={selectedRange === 'all'}
                 >
-                  <Text style={styles.arrowButtonText}>◀</Text>
+                    <Text style={styles.arrowButtonText}>◀</Text>
                 </Pressable>
                 <Text style={styles.periodLabel}>{rangeTitle}</Text>
                 <Pressable
@@ -471,13 +472,8 @@ export function HistoryScreen(): React.JSX.Element {
                     ]}
                     accessibilityRole="button"
                   >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedRange === option.key && styles.chipTextActive
-                      ]}
-                    >
-                      {option.label}
+                    <Text style={[styles.chipText, selectedRange === option.key && styles.chipTextActive]}>
+                      {t(`history.range.${option.key}`)}
                     </Text>
                   </Pressable>
                 ))}
@@ -487,13 +483,13 @@ export function HistoryScreen(): React.JSX.Element {
                 {METRIC_DEFS.map((metric) => (
                   <View key={metric.key} style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: metric.color }]} />
-                    <Text style={styles.legendText}>{metric.label}</Text>
+                    <Text style={styles.legendText}>{t(`history.metric.${metric.key}`)}</Text>
                   </View>
                 ))}
               </View>
 
               {trendSamples.length === 0 ? (
-                <Text style={styles.chartEmpty}>No sessions in this timeframe yet.</Text>
+                <Text style={styles.chartEmpty}>{t('history.noSessionsTimeframe')}</Text>
               ) : (
                 <>
                   <View style={styles.chartFrame} onLayout={onChartLayout}>
@@ -532,26 +528,28 @@ export function HistoryScreen(): React.JSX.Element {
 
                   <View style={styles.chartAxisRow}>
                     <Text style={styles.axisLabel}>{chartData.startLabel}</Text>
-                    <Text style={styles.axisLabel}>{getXAxisLabel(selectedRange)}</Text>
+                    <Text style={styles.axisLabel}>
+                      {selectedRange === 'day' ? t('history.axis.time') : t('history.axis.date')}
+                    </Text>
                     <Text style={styles.axisLabel}>{chartData.endLabel}</Text>
                   </View>
 
                   <Text style={styles.chartMeta}>
-                    Max {Math.round(chartData.maxValue)} ml • Y axis: ml/session
+                    {t('history.axis.meta', { max: Math.round(chartData.maxValue) })}
                   </Text>
                 </>
               )}
             </AppCard>
 
-            <Text style={styles.listHeading}>Sessions</Text>
+            <Text style={styles.listHeading}>{t('history.sessions')}</Text>
           </>
         }
         ListEmptyComponent={
           <AppCard>
             <StateMessage
               variant="empty"
-              title="No sessions yet"
-              message="Add your first session from the Start tab."
+              title={t('history.noSessionsTitle')}
+              message={t('history.noSessionsMessage')}
             />
           </AppCard>
         }
@@ -562,7 +560,9 @@ export function HistoryScreen(): React.JSX.Element {
               L {item.leftMl} ml • R {item.rightMl} ml • {formatDateTime(item.timestamp)}
             </Text>
             {item.durationSeconds > 0 ? (
-              <Text style={styles.itemDetail}>Duration {formatPumpDuration(item.durationSeconds)}</Text>
+              <Text style={styles.itemDetail}>
+                {t('history.durationPrefix')} {formatPumpDuration(item.durationSeconds)}
+              </Text>
             ) : null}
             {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
           </AppCard>
@@ -572,7 +572,8 @@ export function HistoryScreen(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
   headerCard: {
     marginBottom: 12,
     gap: 2
@@ -647,7 +648,7 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     borderColor: colors.primary,
-    backgroundColor: '#e8f2ef'
+    backgroundColor: colors.background
   },
   chipPressed: {
     opacity: 0.8
@@ -689,7 +690,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: '#f9fcfa',
+    backgroundColor: colors.chartSurface,
     position: 'relative',
     overflow: 'hidden'
   },
@@ -716,7 +717,7 @@ const styles = StyleSheet.create({
     left: 4,
     fontSize: 11,
     color: colors.textSecondary,
-    backgroundColor: '#f9fcfa'
+    backgroundColor: colors.chartSurface
   },
   chartAxisRow: {
     flexDirection: 'row',
@@ -757,4 +758,5 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14
   }
-});
+  });
+}

@@ -17,8 +17,9 @@ import {
 
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
+import { useI18n } from '@/i18n/useI18n';
 import { useAppData } from '@/state/AppDataContext';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
 import { formatDateTime, formatRelativeDuration } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
@@ -34,6 +35,9 @@ const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, sessions } = useAppData();
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { t } = useI18n();
   const [leftMlInput, setLeftMlInput] = useState('0');
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
@@ -80,7 +84,7 @@ export function AddSessionScreen(): React.JSX.Element {
         setTimerRunning(false);
         setCountdownStartedAtMs(null);
         Vibration.vibrate([0, 240, 120, 240]);
-        Alert.alert('Timer finished', 'Selected pump duration is complete.');
+        Alert.alert(t('start.timerFinishedTitle'), t('start.timerFinishedMessage'));
       }
     }, 1000);
 
@@ -217,7 +221,7 @@ export function AddSessionScreen(): React.JSX.Element {
     }
 
     if (selectedMinutes < MIN_SELECTABLE_MINUTES) {
-      Alert.alert('Validation', 'Please select at least 1 minute.');
+      Alert.alert(t('start.validationMin1Title'), t('start.validationMin1Message'));
       return;
     }
 
@@ -254,7 +258,7 @@ export function AddSessionScreen(): React.JSX.Element {
     const rightMl = clampMl(Number(rightMlInput));
 
     if (leftMl === 0 && rightMl === 0) {
-      Alert.alert('Validation', 'Enter at least one non-zero amount.');
+      Alert.alert(t('start.validationNonZeroTitle'), t('start.validationNonZeroMessage'));
       return;
     }
 
@@ -276,9 +280,9 @@ export function AddSessionScreen(): React.JSX.Element {
       setNote('');
       setTimestamp(new Date());
       onResetTimer();
-      Alert.alert('Saved', 'Pump session stored locally.');
+      Alert.alert(t('start.savedTitle'), t('start.savedMessage'));
     } catch (error) {
-      Alert.alert('Error', reportError(error, 'Unable to save session right now.'));
+      Alert.alert(t('common.error'), reportError(error, t('start.saveErrorFallback')));
     } finally {
       setSaving(false);
     }
@@ -291,7 +295,7 @@ export function AddSessionScreen(): React.JSX.Element {
         contentContainerStyle={styles.content}
       >
         <AppCard style={styles.lastSessionCard}>
-          <Text style={styles.lastSessionLabel}>Last Session</Text>
+          <Text style={styles.lastSessionLabel}>{t('start.lastSession')}</Text>
           {lastSession ? (
             <>
               <Text style={styles.lastSessionValue}>
@@ -300,13 +304,13 @@ export function AddSessionScreen(): React.JSX.Element {
               <Text style={styles.lastSessionMeta}>{formatDateTime(lastSession.timestamp)}</Text>
             </>
           ) : (
-            <Text style={styles.lastSessionMeta}>No session logged yet.</Text>
+            <Text style={styles.lastSessionMeta}>{t('start.noSessionYet')}</Text>
           )}
         </AppCard>
 
-        <Text style={styles.title}>Start Pump Session</Text>
+        <Text style={styles.title}>{t('start.title')}</Text>
 
-        <Text style={styles.label}>Duration</Text>
+        <Text style={styles.label}>{t('start.duration')}</Text>
         <View style={styles.minutePickerGroup}>
           <View style={styles.timeDisplayRow}>
             <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
@@ -342,7 +346,7 @@ export function AddSessionScreen(): React.JSX.Element {
               <Text style={styles.secondsValue}>{String(displaySeconds).padStart(2, '0')}</Text>
             </View>
           </View>
-          <Text style={styles.minuteUnitLabel}>Minutes</Text>
+          <Text style={styles.minuteUnitLabel}>{t('start.minutes')}</Text>
         </View>
 
         <View style={styles.timerActionsRow}>
@@ -351,41 +355,41 @@ export function AddSessionScreen(): React.JSX.Element {
             accessibilityRole="button"
             style={({ pressed }) => [styles.timerButton, pressed && styles.timerPressed]}
           >
-            <Text style={styles.timerButtonText}>{timerRunning ? 'Pause' : 'Start'}</Text>
+            <Text style={styles.timerButtonText}>{timerRunning ? t('start.pause') : t('start.start')}</Text>
           </Pressable>
           <Pressable
             onPress={onResetTimer}
             accessibilityRole="button"
             style={({ pressed }) => [styles.timerButtonSecondary, pressed && styles.timerPressed]}
           >
-            <Text style={styles.timerButtonSecondaryText}>Reset</Text>
+            <Text style={styles.timerButtonSecondaryText}>{t('start.reset')}</Text>
           </Pressable>
         </View>
 
         <View style={styles.row}>
           <View style={styles.fieldHalf}>
-            <Text style={styles.label}>Left (ml)</Text>
+            <Text style={styles.label}>{t('start.leftMl')}</Text>
             <TextInput
               value={leftMlInput}
               onChangeText={setLeftMlInput}
               keyboardType="numeric"
               style={styles.input}
-              accessibilityLabel="Left milk amount in milliliters"
+              accessibilityLabel={t('start.leftAmountA11y')}
             />
           </View>
           <View style={styles.fieldHalf}>
-            <Text style={styles.label}>Right (ml)</Text>
+            <Text style={styles.label}>{t('start.rightMl')}</Text>
             <TextInput
               value={rightMlInput}
               onChangeText={setRightMlInput}
               keyboardType="numeric"
               style={styles.input}
-              accessibilityLabel="Right milk amount in milliliters"
+              accessibilityLabel={t('start.rightAmountA11y')}
             />
           </View>
         </View>
 
-        <Text style={styles.label}>Session Time</Text>
+        <Text style={styles.label}>{t('start.sessionTime')}</Text>
         {Platform.OS === 'ios' ? (
           <DateTimePicker
             value={timestamp}
@@ -424,14 +428,15 @@ export function AddSessionScreen(): React.JSX.Element {
           </View>
         )}
 
-        <Text style={styles.label}>Note (optional)</Text>
+        <Text style={styles.label}>{t('start.noteOptional')}</Text>
         <TextInput
           value={note}
           onChangeText={setNote}
-          placeholder="Any details to remember"
+          placeholder={t('start.notePlaceholder')}
           style={[styles.input, styles.noteInput]}
           multiline
-          accessibilityLabel="Optional note"
+          placeholderTextColor={colors.textSecondary}
+          accessibilityLabel={t('start.noteA11y')}
         />
 
         <Pressable
@@ -440,14 +445,15 @@ export function AddSessionScreen(): React.JSX.Element {
           accessibilityRole="button"
           style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
         >
-          <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save Session'}</Text>
+          <Text style={styles.saveText}>{saving ? t('start.saving') : t('start.saveSession')}</Text>
         </Pressable>
       </ScrollView>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
   content: {
     paddingBottom: 24,
     gap: 10
@@ -644,4 +650,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700'
   }
-});
+  });
+}

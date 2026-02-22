@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
@@ -7,9 +7,10 @@ import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
+import { useI18n } from '@/i18n/useI18n';
 import { AppTabsParamList } from '@/navigation/types';
 import { useAppData } from '@/state/AppDataContext';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
 import { computeNextReminderTimestamp } from '@/utils/reminder';
 
@@ -18,6 +19,9 @@ export function DashboardScreen(): React.JSX.Element {
   const navigation = useNavigation<BottomTabNavigationProp<AppTabsParamList>>();
   const [now, setNow] = useState(Date.now());
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { t } = useI18n();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -34,7 +38,7 @@ export function DashboardScreen(): React.JSX.Element {
       setRefreshError(null);
       await refresh();
     } catch (error) {
-      setRefreshError(error instanceof Error ? error.message : 'Could not refresh overview.');
+      setRefreshError(error instanceof Error ? error.message : t('overview.errorTitle'));
     }
   };
 
@@ -46,7 +50,7 @@ export function DashboardScreen(): React.JSX.Element {
 
   const nextReminderLabel = reminderSettings.enabled
     ? formatRelativeDuration(nextReminderAt, now)
-    : 'Reminders disabled';
+    : t('overview.remindersDisabled');
 
   if (loading) {
     return (
@@ -54,8 +58,8 @@ export function DashboardScreen(): React.JSX.Element {
         <AppCard>
           <StateMessage
             variant="loading"
-            title="Loading overview..."
-            message="We are preparing your latest data."
+            title={t('overview.loadingTitle')}
+            message={t('overview.loadingMessage')}
           />
         </AppCard>
       </Screen>
@@ -68,9 +72,9 @@ export function DashboardScreen(): React.JSX.Element {
         <AppCard>
           <StateMessage
             variant="error"
-            title="Could not load overview"
+            title={t('overview.errorTitle')}
             message={refreshError}
-            actionLabel="Try again"
+            actionLabel={t('common.tryAgain')}
             onAction={() => {
               void onRetry();
             }}
@@ -83,23 +87,25 @@ export function DashboardScreen(): React.JSX.Element {
   return (
     <Screen>
       <AppCard style={styles.card}>
-        <Text style={styles.eyebrow}>Today</Text>
+        <Text style={styles.eyebrow}>{t('overview.today')}</Text>
         <Text style={styles.title}>{dailyTotalMl} ml</Text>
-        <Text style={styles.subtitle}>Total pumped today</Text>
+        <Text style={styles.subtitle}>{t('overview.totalPumpedToday')}</Text>
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.eyebrow}>Next reminder</Text>
+        <Text style={styles.eyebrow}>{t('overview.nextReminder')}</Text>
         <Text style={styles.title}>{nextReminderLabel}</Text>
         <Text style={styles.subtitle}>
           {reminderSettings.enabled
-            ? `Scheduled for ${formatTime(nextReminderAt)} • Every ${reminderSettings.intervalMinutes} minutes`
-            : 'Turn reminders on in Settings'}
+            ? `${t('overview.scheduledFor')} ${formatTime(nextReminderAt)} • ${t('overview.everyMinutes', {
+                minutes: reminderSettings.intervalMinutes
+              })}`
+            : t('overview.turnOnInSettings')}
         </Text>
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.eyebrow}>Last session</Text>
+        <Text style={styles.eyebrow}>{t('overview.lastSession')}</Text>
         {lastSession ? (
           <>
             <Text style={styles.title}>{`${lastSession.totalMl} ml`}</Text>
@@ -108,38 +114,40 @@ export function DashboardScreen(): React.JSX.Element {
         ) : (
           <StateMessage
             variant="empty"
-            title="No sessions yet"
-            message="Start your first pump session from the Start tab."
+            title={t('overview.noSessionsYet')}
+            message={t('overview.startFirstSession')}
           />
         )}
       </AppCard>
 
       <AppButton
-        label="Start Pumping"
+        label={t('overview.startPumping')}
         onPress={() => navigation.navigate('AddSession')}
-        accessibilityLabel="Open start pumping screen"
+        accessibilityLabel={t('overview.startPumping')}
       />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: 12,
-    gap: 4
-  },
-  eyebrow: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600'
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '700'
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 15
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    card: {
+      marginBottom: 12,
+      gap: 4
+    },
+    eyebrow: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600'
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 28,
+      fontWeight: '700'
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 15
+    }
+  });
+}

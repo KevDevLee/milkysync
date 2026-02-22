@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
 
 import { AppButton } from '@/components/AppButton';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 
 type StateVariant = 'loading' | 'empty' | 'error' | 'info';
 
@@ -31,6 +32,9 @@ export function StateMessage({
   actionLabel,
   onAction
 }: StateMessageProps): React.JSX.Element {
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       {variant === 'loading' ? (
@@ -53,30 +57,32 @@ export function StateMessage({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 20,
-    paddingHorizontal: 16
-  },
-  title: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontWeight: '700',
-    textAlign: 'center'
-  },
-  message: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center'
-  },
-  action: {
-    minHeight: 40,
-    marginTop: 4
-  },
-  actionLabel: {
-    fontSize: 14
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 20,
+      paddingHorizontal: 16
+    },
+    title: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: '700',
+      textAlign: 'center'
+    },
+    message: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center'
+    },
+    action: {
+      minHeight: 40,
+      marginTop: 4
+    },
+    actionLabel: {
+      fontSize: 14
+    }
+  });
+}

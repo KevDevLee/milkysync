@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import {
   StyleProp,
   StyleSheet,
@@ -10,7 +10,7 @@ import {
   ViewStyle
 } from 'react-native';
 
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 
 type AppInputProps = TextInputProps & {
   label?: string;
@@ -30,6 +30,9 @@ export function AppInput({
   rightAccessory,
   ...props
 }: AppInputProps): React.JSX.Element {
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={[styles.field, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -47,43 +50,45 @@ export function AppInput({
   );
 }
 
-const styles = StyleSheet.create({
-  field: {
-    gap: 6
-  },
-  label: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600'
-  },
-  inputShell: {
-    minHeight: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  inputShellError: {
-    borderColor: colors.danger
-  },
-  input: {
-    flex: 1,
-    minHeight: 50,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: colors.textPrimary
-  },
-  rightAccessory: {
-    paddingHorizontal: 8
-  },
-  helperText: {
-    fontSize: 13,
-    color: colors.textSecondary
-  },
-  errorText: {
-    fontSize: 13,
-    color: colors.danger
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    field: {
+      gap: 6
+    },
+    label: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '600'
+    },
+    inputShell: {
+      minHeight: 50,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      flexDirection: 'row',
+      alignItems: 'center'
+    },
+    inputShellError: {
+      borderColor: colors.danger
+    },
+    input: {
+      flex: 1,
+      minHeight: 50,
+      paddingHorizontal: 12,
+      fontSize: 16,
+      color: colors.textPrimary
+    },
+    rightAccessory: {
+      paddingHorizontal: 8
+    },
+    helperText: {
+      fontSize: 13,
+      color: colors.textSecondary
+    },
+    errorText: {
+      fontSize: 13,
+      color: colors.danger
+    }
+  });
+}

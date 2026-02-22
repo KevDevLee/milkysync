@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,8 +6,9 @@ import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
 import { AppInput } from '@/components/AppInput';
 import { StateMessage } from '@/components/StateMessage';
+import { useI18n } from '@/i18n/useI18n';
 import { useAuth } from '@/services/auth/AuthContext';
-import { colors } from '@/theme/colors';
+import { AppColors, useAppColors } from '@/theme/colors';
 import { UserRole } from '@/types/models';
 import { reportError } from '@/utils/error';
 
@@ -15,7 +16,6 @@ type AuthMode = 'login' | 'signup';
 
 export function AuthScreen(): React.JSX.Element {
   const { signIn, signUp, loading, isConfigured, authError } = useAuth();
-
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,10 +23,13 @@ export function AuthScreen(): React.JSX.Element {
   const [role, setRole] = useState<UserRole>('mother');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const colors = useAppColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { t } = useI18n();
 
   const onSubmit = async (): Promise<void> => {
     if (!email || !password) {
-      Alert.alert('Validation', 'Email and password are required.');
+      Alert.alert(t('auth.validation.title'), t('auth.validation.emailPasswordRequired'));
       return;
     }
 
@@ -43,7 +46,7 @@ export function AuthScreen(): React.JSX.Element {
         });
       }
     } catch (error) {
-      Alert.alert('Auth error', reportError(error, 'Authentication failed'));
+      Alert.alert(t('auth.error.title'), reportError(error, t('auth.error.fallback')));
     } finally {
       setSubmitting(false);
     }
@@ -54,8 +57,8 @@ export function AuthScreen(): React.JSX.Element {
       <View style={styles.centered}>
         <StateMessage
           variant="loading"
-          title="Checking session..."
-          message="We are loading your account."
+          title={t('auth.checkingSession')}
+          message={t('auth.checkingSessionMessage')}
         />
       </View>
     );
@@ -64,12 +67,12 @@ export function AuthScreen(): React.JSX.Element {
   if (!isConfigured) {
     return (
       <View style={styles.configContainer}>
-        <Text style={styles.title}>MilkySync</Text>
+        <Text style={styles.title}>{t('auth.appTitle')}</Text>
         <AppCard>
           <StateMessage
             variant="error"
-            title="Supabase is not configured"
-            message="Add the Supabase values in .env and restart Expo."
+            title={t('auth.supabaseMissingTitle')}
+            message={t('auth.supabaseMissingMessage')}
           />
         </AppCard>
       </View>
@@ -78,8 +81,10 @@ export function AuthScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>MilkySync</Text>
-      <Text style={styles.subtitle}>{mode === 'login' ? 'Welcome back' : 'Create your family account'}</Text>
+      <Text style={styles.title}>{t('auth.appTitle')}</Text>
+      <Text style={styles.subtitle}>
+        {mode === 'login' ? t('auth.welcomeBack') : t('auth.createFamilyAccount')}
+      </Text>
 
       <AppCard style={styles.formCard}>
         <View style={styles.switchRow}>
@@ -87,13 +92,17 @@ export function AuthScreen(): React.JSX.Element {
             onPress={() => setMode('login')}
             style={[styles.switchChip, mode === 'login' && styles.switchChipActive]}
           >
-            <Text style={[styles.switchChipText, mode === 'login' && styles.switchChipTextActive]}>Log In</Text>
+            <Text style={[styles.switchChipText, mode === 'login' && styles.switchChipTextActive]}>
+              {t('auth.logIn')}
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => setMode('signup')}
             style={[styles.switchChip, mode === 'signup' && styles.switchChipActive]}
           >
-            <Text style={[styles.switchChipText, mode === 'signup' && styles.switchChipTextActive]}>Sign Up</Text>
+            <Text style={[styles.switchChipText, mode === 'signup' && styles.switchChipTextActive]}>
+              {t('auth.signUp')}
+            </Text>
           </Pressable>
         </View>
 
@@ -102,7 +111,7 @@ export function AuthScreen(): React.JSX.Element {
             <AppInput
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="Display name"
+              placeholder={t('auth.displayName')}
               autoCapitalize="words"
             />
             <View style={styles.roleRow}>
@@ -113,7 +122,7 @@ export function AuthScreen(): React.JSX.Element {
                   style={[styles.roleChip, role === option && styles.roleChipActive]}
                 >
                   <Text style={[styles.roleChipText, role === option && styles.roleChipTextActive]}>
-                    {option}
+                    {t(`auth.role.${option}`)}
                   </Text>
                 </Pressable>
               ))}
@@ -124,14 +133,14 @@ export function AuthScreen(): React.JSX.Element {
         <AppInput
           value={email}
           onChangeText={setEmail}
-          placeholder="Email"
+          placeholder={t('auth.email')}
           keyboardType="email-address"
           autoCapitalize="none"
         />
         <AppInput
           value={password}
           onChangeText={setPassword}
-          placeholder="Password"
+          placeholder={t('auth.password')}
           secureTextEntry={!showPassword}
           rightAccessory={
             <Pressable
@@ -155,107 +164,115 @@ export function AuthScreen(): React.JSX.Element {
         <AppButton
           onPress={onSubmit}
           disabled={submitting}
-          label={submitting ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Create Account'}
+          label={
+            submitting
+              ? t('auth.pleaseWait')
+              : mode === 'login'
+                ? t('auth.logIn')
+                : t('auth.createAccount')
+          }
         />
       </AppCard>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: colors.background,
-    gap: 12
-  },
-  configContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    backgroundColor: colors.background,
-    gap: 12
-  },
-  formCard: {
-    gap: 12
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '700',
-    color: colors.textPrimary
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary
-  },
-  switchRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4
-  },
-  switchChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface
-  },
-  switchChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary
-  },
-  switchChipText: {
-    color: colors.textPrimary,
-    fontWeight: '600'
-  },
-  switchChipTextActive: {
-    color: '#ffffff'
-  },
-  passwordToggle: {
-    minWidth: 40,
-    minHeight: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  passwordTogglePressed: {
-    opacity: 0.75
-  },
-  roleRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap'
-  },
-  roleChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    backgroundColor: colors.surface
-  },
-  roleChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#e6f2ef'
-  },
-  roleChipText: {
-    color: colors.textSecondary,
-    textTransform: 'capitalize',
-    fontWeight: '600'
-  },
-  roleChipTextActive: {
-    color: colors.primary
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: 14
-  }
-});
+function createStyles(colors: AppColors) {
+  return StyleSheet.create({
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background
+    },
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      backgroundColor: colors.background,
+      gap: 12
+    },
+    configContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      backgroundColor: colors.background,
+      gap: 12
+    },
+    formCard: {
+      gap: 12
+    },
+    title: {
+      fontSize: 34,
+      fontWeight: '700',
+      color: colors.textPrimary
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textSecondary
+    },
+    switchRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4
+    },
+    switchChip: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface
+    },
+    switchChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary
+    },
+    switchChipText: {
+      color: colors.textPrimary,
+      fontWeight: '600'
+    },
+    switchChipTextActive: {
+      color: '#ffffff'
+    },
+    passwordToggle: {
+      minWidth: 40,
+      minHeight: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    passwordTogglePressed: {
+      opacity: 0.75
+    },
+    roleRow: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap'
+    },
+    roleChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      backgroundColor: colors.surface
+    },
+    roleChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.background
+    },
+    roleChipText: {
+      color: colors.textSecondary,
+      textTransform: 'capitalize',
+      fontWeight: '600'
+    },
+    roleChipTextActive: {
+      color: colors.primary
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: 14
+    }
+  });
+}

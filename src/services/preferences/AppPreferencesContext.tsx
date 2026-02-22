@@ -9,6 +9,8 @@ import {
   useState
 } from 'react';
 
+import { setCurrentLanguage } from '@/i18n/locale';
+
 type ThemeMode = 'light' | 'dark';
 type AppLanguage = 'de' | 'en';
 
@@ -71,6 +73,10 @@ export function AppPreferencesProvider({ children }: PropsWithChildren): React.J
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setCurrentLanguage(preferences.language);
+  }, [preferences.language]);
 
   const persist = useCallback(async (nextPreferences: AppPreferences): Promise<void> => {
     setPreferences(nextPreferences);

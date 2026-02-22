@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -35,7 +36,7 @@ const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession, sessions } = useAppData();
+  const { addSession, sessions, reminderSettings } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -52,9 +53,17 @@ export function AddSessionScreen(): React.JSX.Element {
   const [timerMinutesLoaded, setTimerMinutesLoaded] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
+  const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
+  const [nextRoundMinutes, setNextRoundMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [now, setNow] = useState(Date.now());
   const minuteWheelRef = useRef<ScrollView>(null);
   const minuteWheelMomentumRef = useRef(false);
+  const nextRoundWheelRef = useRef<ScrollView>(null);
+  const nextRoundWheelMomentumRef = useRef(false);
+  const nextRoundDefaultMinutes = Math.max(
+    MIN_SELECTABLE_MINUTES,
+    Math.min(MAX_SELECTABLE_MINUTES, reminderSettings.intervalMinutes || DEFAULT_TIMER_MINUTES)
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -73,6 +82,29 @@ export function AddSessionScreen(): React.JSX.Element {
   }, [selectedMinutes]);
 
   useEffect(() => {
+    if (!showNextRoundPrompt) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const minuteIndex = MINUTE_OPTIONS.indexOf(nextRoundMinutes);
+      if (minuteIndex < 0) {
+        return;
+      }
+
+      nextRoundWheelRef.current?.scrollTo({
+        x: 0,
+        y: minuteIndex * MINUTE_ITEM_HEIGHT,
+        animated: false
+      });
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [nextRoundMinutes, showNextRoundPrompt]);
+
+  useEffect(() => {
     if (!timerRunning || countdownStartedAtMs === null) {
       return;
     }
@@ -86,14 +118,15 @@ export function AddSessionScreen(): React.JSX.Element {
         setTimerRunning(false);
         setCountdownStartedAtMs(null);
         Vibration.vibrate([0, 240, 120, 240]);
-        Alert.alert(t('start.timerFinishedTitle'), t('start.timerFinishedMessage'));
+        setNextRoundMinutes(nextRoundDefaultMinutes);
+        setShowNextRoundPrompt(true);
       }
     }, 1000);
 
     return () => {
       clearInterval(interval);
     };
-  }, [countdownStartedAtMs, targetDurationSeconds, timerRunning]);
+  }, [countdownStartedAtMs, nextRoundDefaultMinutes, targetDurationSeconds, timerRunning]);
 
   const getCurrentRemainingSeconds = (): number => {
     if (!timerRunning || countdownStartedAtMs === null) {
@@ -126,6 +159,23 @@ export function AddSessionScreen(): React.JSX.Element {
       });
     }
   }, [selectedMinutes, timerRunning]);
+
+  const onNextRoundMinutesScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const nextMinuteIndex = getNearestMinuteIndex(offsetY);
+      const nextMinutes = MINUTE_OPTIONS[nextMinuteIndex] ?? nextRoundMinutes;
+      setNextRoundMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextMinutes));
+      if (nextMinuteIndex === MIN_SELECTABLE_MINUTES) {
+        nextRoundWheelRef.current?.scrollTo({
+          x: 0,
+          y: MIN_SELECTABLE_MINUTES * MINUTE_ITEM_HEIGHT,
+          animated: false
+        });
+      }
+    },
+    [nextRoundMinutes]
+  );
 
   useEffect(() => {
     let active = true;
@@ -199,6 +249,22 @@ export function AddSessionScreen(): React.JSX.Element {
       )),
     [wheelMinuteValue]
   );
+  const nextRoundMinuteWheelItems = useMemo(
+    () =>
+      MINUTE_OPTIONS.map((item) => (
+        <View key={`next-round-${item}`} style={styles.modalMinuteWheelItem}>
+          <Text
+            style={[
+              styles.modalMinuteWheelItemText,
+              nextRoundMinutes === item && styles.modalMinuteWheelItemTextActive
+            ]}
+          >
+            {item}
+          </Text>
+        </View>
+      )),
+    [nextRoundMinutes, styles.modalMinuteWheelItem, styles.modalMinuteWheelItemText, styles.modalMinuteWheelItemTextActive]
+  );
 
   useEffect(() => {
     if (!timerMinutesLoaded) {
@@ -217,6 +283,17 @@ export function AddSessionScreen(): React.JSX.Element {
     });
   }, [timerMinutesLoaded, wheelMinuteValue]);
 
+  const startFreshTimer = (minutes: number): void => {
+    const safeMinutes = Math.max(MIN_SELECTABLE_MINUTES, Math.min(MAX_SELECTABLE_MINUTES, minutes));
+    const selectedSeconds = safeMinutes * 60;
+
+    setSelectedMinutes(safeMinutes);
+    setTargetDurationSeconds(selectedSeconds);
+    setRemainingSeconds(selectedSeconds);
+    setCountdownStartedAtMs(Date.now());
+    setTimerRunning(true);
+  };
+
   const onStartTimer = (): void => {
     if (timerRunning) {
       return;
@@ -234,6 +311,11 @@ export function AddSessionScreen(): React.JSX.Element {
     setRemainingSeconds(nextTargetSeconds);
     setCountdownStartedAtMs(Date.now());
     setTimerRunning(true);
+  };
+
+  const onStartNextRoundTimer = (): void => {
+    setShowNextRoundPrompt(false);
+    startFreshTimer(nextRoundMinutes);
   };
 
   const onPauseTimer = (): void => {
@@ -447,10 +529,75 @@ export function AddSessionScreen(): React.JSX.Element {
           disabled={saving}
           accessibilityRole="button"
           style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
-        >
-          <Text style={styles.saveText}>{saving ? t('start.saving') : t('start.saveSession')}</Text>
-        </Pressable>
+      >
+        <Text style={styles.saveText}>{saving ? t('start.saving') : t('start.saveSession')}</Text>
+      </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={showNextRoundPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNextRoundPrompt(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('start.timerFinishedTitle')}</Text>
+            <Text style={styles.modalMessage}>{t('start.nextRoundPromptMessage')}</Text>
+            <Text style={styles.modalHint}>
+              {t('start.nextRoundDefaultHint', { minutes: nextRoundDefaultMinutes })}
+            </Text>
+
+            <View style={styles.modalMinuteSelectorRow}>
+              <View style={styles.modalMinuteWheelContainer}>
+                <ScrollView
+                  ref={nextRoundWheelRef}
+                  showsVerticalScrollIndicator={false}
+                  style={styles.modalMinuteWheel}
+                  contentContainerStyle={styles.minuteWheelContent}
+                  snapToInterval={MINUTE_ITEM_HEIGHT}
+                  decelerationRate="fast"
+                  bounces={false}
+                  nestedScrollEnabled
+                  onScrollBeginDrag={() => {
+                    nextRoundWheelMomentumRef.current = false;
+                  }}
+                  onMomentumScrollBegin={() => {
+                    nextRoundWheelMomentumRef.current = true;
+                  }}
+                  onMomentumScrollEnd={onNextRoundMinutesScrollEnd}
+                  onScrollEndDrag={(event) => {
+                    if (!nextRoundWheelMomentumRef.current) {
+                      onNextRoundMinutesScrollEnd(event);
+                    }
+                  }}
+                >
+                  {nextRoundMinuteWheelItems}
+                </ScrollView>
+                <View pointerEvents="none" style={styles.modalMinuteWheelCenterMarker} />
+              </View>
+              <Text style={styles.modalMinuteLabel}>{t('start.minutes')}</Text>
+            </View>
+
+            <View style={styles.modalActionsRow}>
+              <Pressable
+                onPress={() => setShowNextRoundPrompt(false)}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.timerPressed]}
+              >
+                <Text style={styles.modalSecondaryButtonText}>{t('start.nextRoundNotNow')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={onStartNextRoundTimer}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.modalPrimaryButton, pressed && styles.timerPressed]}
+              >
+                <Text style={styles.modalPrimaryButtonText}>{t('start.nextRoundStartButton')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -652,6 +799,124 @@ function createStyles(colors: AppColors) {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700'
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 16,
+    gap: 10
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: colors.textSecondary
+  },
+  modalHint: {
+    fontSize: 13,
+    color: colors.textSecondary
+  },
+  modalMinuteSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 4
+  },
+  modalMinuteWheelContainer: {
+    width: 100,
+    height: MINUTE_WHEEL_HEIGHT,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden'
+  },
+  modalMinuteWheel: {
+    flex: 1
+  },
+  modalMinuteWheelItem: {
+    height: MINUTE_ITEM_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalMinuteWheelItemText: {
+    color: colors.textSecondary,
+    fontSize: 28,
+    fontWeight: '600',
+    opacity: 0.55,
+    fontVariant: ['tabular-nums']
+  },
+  modalMinuteWheelItemTextActive: {
+    color: colors.textPrimary,
+    fontSize: 36,
+    fontWeight: '700',
+    opacity: 1,
+    fontVariant: ['tabular-nums']
+  },
+  modalMinuteWheelCenterMarker: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
+    height: MINUTE_ITEM_HEIGHT,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'transparent'
+  },
+  modalMinuteLabel: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '700'
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalPrimaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface
+  },
+  modalSecondaryButtonText: {
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 15
   }
   });
 }

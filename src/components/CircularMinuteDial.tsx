@@ -28,7 +28,7 @@ const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
 const TRACK_TOUCH_PADDING = 28;
-const MAX_DELTA_DEGREES_PER_EVENT = 24;
+const MAX_DELTA_DEGREES_PER_EVENT = 14;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -86,6 +86,7 @@ export function CircularMinuteDial({
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(), []);
   const [dialSize, setDialSize] = useState<Point>({ x: DIAL_SIZE, y: DIAL_SIZE });
+  const [dragVisualAngle, setDragVisualAngle] = useState<number | null>(null);
   const center = useMemo<Point>(() => ({ x: dialSize.x / 2, y: dialSize.y / 2 }), [dialSize.x, dialSize.y]);
 
   const safeMax = Math.max(minSelectable, max);
@@ -94,7 +95,9 @@ export function CircularMinuteDial({
   const safeCountdownSeconds = countdownMode ? Math.max(0, countdownSeconds) : null;
   const countdownMinutesFloat = countdownMode && safeCountdownSeconds !== null ? safeCountdownSeconds / 60 : null;
   const dialMinutesForPosition = countdownMode && countdownMinutesFloat !== null ? countdownMinutesFloat : clampedValue;
-  const angleForKnob = normalizeAngle(((dialMinutesForPosition % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
+  const quantizedKnobAngle = normalizeAngle(((dialMinutesForPosition % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
+  const angleForKnob =
+    !countdownMode && dragVisualAngle !== null ? dragVisualAngle : quantizedKnobAngle;
   const knobPoint = pointOnCircle(center, TRACK_RADIUS, angleForKnob);
   const fullTurns = Math.floor(dialMinutesForPosition / MINUTES_PER_TURN);
   const minuteCycleValueRaw = dialMinutesForPosition % MINUTES_PER_TURN;
@@ -133,6 +136,7 @@ export function CircularMinuteDial({
       lastAngleRef.current = nextAngle;
       return;
     }
+    setDragVisualAngle(nextAngle);
 
     const prevAngle = lastAngleRef.current;
     if (prevAngle === null) {
@@ -167,6 +171,7 @@ export function CircularMinuteDial({
           lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, center);
           dragActiveRef.current = isTouchNearTrack(locationX, locationY);
           if (dragActiveRef.current) {
+            setDragVisualAngle(lastAngleRef.current);
             onInteractionChange?.(true);
           }
         },
@@ -178,6 +183,7 @@ export function CircularMinuteDial({
             accumulatedAngleRef.current = 0;
             lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, center);
             onInteractionChange?.(true);
+            setDragVisualAngle(lastAngleRef.current);
             return;
           }
           updateFromTouch(locationX, locationY);
@@ -188,6 +194,7 @@ export function CircularMinuteDial({
           dragActiveRef.current = false;
           lastAngleRef.current = null;
           accumulatedAngleRef.current = 0;
+          setDragVisualAngle(null);
           if (wasActive) {
             onInteractionChange?.(false);
           }
@@ -197,6 +204,7 @@ export function CircularMinuteDial({
           dragActiveRef.current = false;
           lastAngleRef.current = null;
           accumulatedAngleRef.current = 0;
+          setDragVisualAngle(null);
           if (wasActive) {
             onInteractionChange?.(false);
           }

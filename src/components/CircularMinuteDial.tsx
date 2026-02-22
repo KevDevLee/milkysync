@@ -24,7 +24,7 @@ const TRACK_RADIUS = (OUTER_DIAMETER + INNER_DIAMETER) / 4;
 const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
-const TOUCH_MARGIN = 4;
+const TOUCH_MARGIN = 8;
 const MAX_DELTA_PER_MOVE_DEG = 18;
 
 function clamp(value: number, min: number, max: number): number {
@@ -131,6 +131,16 @@ export function CircularMinuteDial({
     return d >= ringTouchMinRadius && d <= ringTouchMaxRadius;
   };
 
+  const isTouchOnKnob = (x: number, y: number): boolean => {
+    const valueForKnob = valueRef.current;
+    const knobAngleForHit = normalizeAngle((valueForKnob % MINUTES_PER_TURN) * DEGREES_PER_MINUTE);
+    const knobCenter = pointOnCircle(centerRef.current, TRACK_RADIUS, knobAngleForHit);
+    return distance(x, y, knobCenter) <= KNOB_SIZE / 2 + 10;
+  };
+
+  const isTouchInActiveZone = (x: number, y: number): boolean =>
+    isTouchOnVisibleRing(x, y) || isTouchOnKnob(x, y);
+
   const updateValueFromMove = (x: number, y: number): void => {
     if (disabledRef.current || !draggingRef.current) {
       return;
@@ -163,21 +173,25 @@ export function CircularMinuteDial({
   };
 
   const panResponderRef = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt) =>
-        !disabledRef.current && isTouchOnVisibleRing(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
-      onMoveShouldSetPanResponder: (evt) =>
-        !disabledRef.current && isTouchOnVisibleRing(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
-      onPanResponderGrant: (evt) => {
+      PanResponder.create({
+        onStartShouldSetPanResponder: (evt) =>
+          !disabledRef.current && isTouchInActiveZone(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+        onMoveShouldSetPanResponder: (evt) =>
+          !disabledRef.current && isTouchInActiveZone(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+        onStartShouldSetPanResponderCapture: (evt) =>
+          !disabledRef.current && isTouchInActiveZone(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+        onMoveShouldSetPanResponderCapture: (evt) =>
+          !disabledRef.current && isTouchInActiveZone(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+        onPanResponderGrant: (evt) => {
         if (disabledRef.current) {
           return;
         }
 
         const { locationX, locationY } = evt.nativeEvent;
-        if (!isTouchOnVisibleRing(locationX, locationY)) {
-          draggingRef.current = false;
-          return;
-        }
+          if (!isTouchInActiveZone(locationX, locationY)) {
+            draggingRef.current = false;
+            return;
+          }
 
         draggingRef.current = true;
         dragStartValueRef.current = valueRef.current;

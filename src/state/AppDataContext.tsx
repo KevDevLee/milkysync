@@ -21,6 +21,14 @@ export type AddSessionInput = {
   durationSeconds?: number;
 };
 
+export type UpdateSessionInput = {
+  id: string;
+  leftMl: number;
+  rightMl: number;
+  timestamp: number;
+  note?: string;
+};
+
 type AppDataContextValue = {
   profile: UserProfile;
   sessions: PumpSession[];
@@ -30,6 +38,7 @@ type AppDataContextValue = {
   refresh: () => Promise<void>;
   syncNow: () => Promise<void>;
   addSession: (input: AddSessionInput) => Promise<PumpSession>;
+  updateSession: (input: UpdateSessionInput) => Promise<PumpSession>;
   saveReminderSettings: (input: { intervalMinutes: number; enabled: boolean }) => Promise<void>;
 };
 
@@ -181,6 +190,36 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
     [profile.familyId, profile.id, refresh, reminderSettings, scheduleNextReminder, syncNow]
   );
 
+  const updateSession = useCallback(
+    async (input: UpdateSessionInput) => {
+      const familyId = profile.familyId;
+      if (!familyId) {
+        throw new Error('No family linked to this profile yet.');
+      }
+
+      const existing = sessions.find((session) => session.id === input.id);
+      if (!existing) {
+        throw new Error('Pump session not found in current state.');
+      }
+
+      const saved = await pumpSessionRepository.update({
+        id: existing.id,
+        timestamp: input.timestamp,
+        leftMl: input.leftMl,
+        rightMl: input.rightMl,
+        durationSeconds: existing.durationSeconds,
+        note: input.note ?? existing.note
+      });
+
+      await refresh();
+      const lastSession = await pumpSessionRepository.getLastByFamily(familyId);
+      await scheduleNextReminder(lastSession?.timestamp ?? null, reminderSettings);
+      void syncNow();
+      return saved;
+    },
+    [profile.familyId, refresh, reminderSettings, scheduleNextReminder, sessions, syncNow]
+  );
+
   const saveReminderSettings = useCallback(
     async (input: { intervalMinutes: number; enabled: boolean }) => {
       const nextSettings = await reminderSettingsRepository.update({
@@ -208,6 +247,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       refresh,
       syncNow,
       addSession,
+      updateSession,
       saveReminderSettings
     }),
     [
@@ -219,7 +259,8 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       reminderSettings,
       saveReminderSettings,
       sessions,
-      syncNow
+      syncNow,
+      updateSession
     ]
   );
 

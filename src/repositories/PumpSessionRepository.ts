@@ -31,6 +31,15 @@ export type CreatePumpSessionInput = {
   familyId: string;
 };
 
+export type UpdatePumpSessionInput = {
+  id: string;
+  timestamp: number;
+  leftMl: number;
+  rightMl: number;
+  durationSeconds: number;
+  note?: string | null;
+};
+
 function mapRow(row: PumpSessionRow): PumpSession {
   return {
     id: row.id,
@@ -114,6 +123,59 @@ export class PumpSessionRepository {
       limit
     );
     return rows.map(mapRow);
+  }
+
+  async update(input: UpdatePumpSessionInput): Promise<PumpSession> {
+    const db = await getDatabase();
+    const existing = await db.getFirstAsync<PumpSessionRow>(
+      'SELECT * FROM pump_sessions WHERE id = ? LIMIT 1',
+      input.id
+    );
+
+    if (!existing || existing.deleted_at !== null) {
+      throw new Error('Pump session not found.');
+    }
+
+    const now = Date.now();
+    const next: PumpSession = {
+      id: existing.id,
+      timestamp: input.timestamp,
+      leftMl: input.leftMl,
+      rightMl: input.rightMl,
+      totalMl: computeTotalMl(input.leftMl, input.rightMl),
+      durationSeconds: Math.max(0, Math.min(2 * 60 * 60, Math.round(input.durationSeconds))),
+      note: input.note ?? null,
+      createdAt: existing.created_at,
+      updatedAt: now,
+      userId: existing.user_id,
+      familyId: existing.family_id
+    };
+
+    await db.runAsync(
+      `
+      UPDATE pump_sessions
+      SET
+        timestamp = ?,
+        left_ml = ?,
+        right_ml = ?,
+        total_ml = ?,
+        duration_seconds = ?,
+        note = ?,
+        updated_at = ?,
+        dirty = 1
+      WHERE id = ?
+      `,
+      next.timestamp,
+      next.leftMl,
+      next.rightMl,
+      next.totalMl,
+      next.durationSeconds,
+      next.note,
+      next.updatedAt,
+      next.id
+    );
+
+    return next;
   }
 
   async getLastByFamily(familyId: string): Promise<PumpSession | null> {

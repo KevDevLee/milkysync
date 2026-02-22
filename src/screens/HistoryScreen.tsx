@@ -1,18 +1,35 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMemo, useState } from 'react';
-import { FlatList, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  LayoutChangeEvent,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
 import { getCurrentIntlLocale } from '@/i18n/locale';
 import { useI18n } from '@/i18n/useI18n';
+import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors, colors as staticColors } from '@/theme/colors';
+import { reportError } from '@/utils/error';
 import { formatDateTime, startOfLocalDay } from '@/utils/date';
+import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
 type TrendRange = 'day' | 'week' | 'month' | 'all';
 type TrendMetric = 'left' | 'right' | 'total';
+type SessionSort = 'newest' | 'oldest' | 'total_desc' | 'total_asc';
 
 type RangeBounds = {
   start: number;
@@ -53,6 +70,13 @@ const RANGE_OPTIONS: Array<{ key: TrendRange }> = [
   { key: 'week' },
   { key: 'month' },
   { key: 'all' }
+];
+
+const SORT_OPTIONS: Array<{ key: SessionSort }> = [
+  { key: 'newest' },
+  { key: 'oldest' },
+  { key: 'total_desc' },
+  { key: 'total_asc' }
 ];
 
 const METRIC_DEFS: Array<{ key: TrendMetric; label: string; color: string }> = [
@@ -188,14 +212,21 @@ function buildYAxisTicks(axisMax: number): number[] {
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, dailyTotalMl, loading, refresh } = useAppData();
+  const { sessions, dailyTotalMl, loading, refresh, updateSession } = useAppData();
+  const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
   const [selectedRange, setSelectedRange] = useState<TrendRange>('day');
+  const [sortBy, setSortBy] = useState<SessionSort>('newest');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editLeftMlInput, setEditLeftMlInput] = useState('0');
+  const [editRightMlInput, setEditRightMlInput] = useState('0');
+  const [editTimestamp, setEditTimestamp] = useState<Date>(new Date());
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -219,8 +250,21 @@ export function HistoryScreen(): React.JSX.Element {
   }, [rangeBounds.endExclusive, rangeBounds.start, sessions]);
 
   const listSessions = useMemo(
-    () => [...filteredSessions].sort((a, b) => b.timestamp - a.timestamp),
-    [filteredSessions]
+    () =>
+      [...filteredSessions].sort((a, b) => {
+        switch (sortBy) {
+          case 'oldest':
+            return a.timestamp - b.timestamp;
+          case 'total_desc':
+            return b.totalMl - a.totalMl || b.timestamp - a.timestamp;
+          case 'total_asc':
+            return a.totalMl - b.totalMl || b.timestamp - a.timestamp;
+          case 'newest':
+          default:
+            return b.timestamp - a.timestamp;
+        }
+      }),
+    [filteredSessions, sortBy]
   );
 
   const chartSessions = useMemo(
@@ -362,6 +406,73 @@ export function HistoryScreen(): React.JSX.Element {
   };
 
   const canGoForward = selectedRange !== 'all' && periodOffset < 0;
+  const editingSession = useMemo(
+    () => listSessions.find((session) => session.id === editingSessionId) ?? null,
+    [editingSessionId, listSessions]
+  );
+
+  const openEditSession = (sessionId: string): void => {
+    const session = listSessions.find((item) => item.id === sessionId);
+    if (!session) {
+      return;
+    }
+    setEditingSessionId(session.id);
+    setEditLeftMlInput(String(session.leftMl));
+    setEditRightMlInput(String(session.rightMl));
+    setEditTimestamp(new Date(session.timestamp));
+  };
+
+  const closeEditModal = (): void => {
+    if (savingEdit) {
+      return;
+    }
+    setEditingSessionId(null);
+  };
+
+  const onSaveEdit = async (): Promise<void> => {
+    if (!editingSession) {
+      return;
+    }
+
+    const leftMl = clampMl(Number(editLeftMlInput));
+    const rightMl = clampMl(Number(editRightMlInput));
+    if (leftMl === 0 && rightMl === 0) {
+      Alert.alert(t('common.error'), t('history.edit.validationNonZero'));
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      await updateSession({
+        id: editingSession.id,
+        leftMl,
+        rightMl,
+        timestamp: editTimestamp.getTime()
+      });
+      setEditingSessionId(null);
+      Alert.alert(t('common.saved'), t('history.edit.savedMessage'));
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('history.edit.saveError')));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const updateEditDatePart = (nextDate: Date): void => {
+    setEditTimestamp((previous) => {
+      const merged = new Date(previous);
+      merged.setFullYear(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+      return merged;
+    });
+  };
+
+  const updateEditTimePart = (nextTime: Date): void => {
+    setEditTimestamp((previous) => {
+      const merged = new Date(previous);
+      merged.setHours(nextTime.getHours(), nextTime.getMinutes(), 0, 0);
+      return merged;
+    });
+  };
 
   const onRetry = async (): Promise<void> => {
     try {
@@ -542,6 +653,28 @@ export function HistoryScreen(): React.JSX.Element {
             </AppCard>
 
             <Text style={styles.listHeading}>{t('history.sessions')}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.sortRow}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setSortBy(option.key)}
+                  style={({ pressed }) => [
+                    styles.sortChip,
+                    sortBy === option.key && styles.chipActive,
+                    pressed && styles.chipPressed
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.chipText, sortBy === option.key && styles.chipTextActive]}>
+                    {t(`history.sort.${option.key}`)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           </>
         }
         ListEmptyComponent={
@@ -554,20 +687,140 @@ export function HistoryScreen(): React.JSX.Element {
           </AppCard>
         }
         renderItem={({ item }) => (
-          <AppCard style={styles.itemCard}>
-            <Text style={styles.itemTotal}>{item.totalMl} ml</Text>
-            <Text style={styles.itemDetail}>
-              L {item.leftMl} ml • R {item.rightMl} ml • {formatDateTime(item.timestamp)}
-            </Text>
-            {item.durationSeconds > 0 ? (
+          <Pressable
+            onPress={() => openEditSession(item.id)}
+            accessibilityRole="button"
+            style={({ pressed }) => pressed && styles.chipPressed}
+          >
+            <AppCard style={styles.itemCard}>
+              <View style={styles.itemHeaderRow}>
+                <Text style={styles.itemTotal}>{item.totalMl} ml</Text>
+                <Text style={styles.editCta}>{t('history.edit.cta')}</Text>
+              </View>
               <Text style={styles.itemDetail}>
-                {t('history.durationPrefix')} {formatPumpDuration(item.durationSeconds)}
+                L {item.leftMl} ml • R {item.rightMl} ml • {formatDateTime(item.timestamp)}
               </Text>
-            ) : null}
-            {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
-          </AppCard>
+              {item.durationSeconds > 0 ? (
+                <Text style={styles.itemDetail}>
+                  {t('history.durationPrefix')} {formatPumpDuration(item.durationSeconds)}
+                </Text>
+              ) : null}
+              {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+            </AppCard>
+          </Pressable>
         )}
       />
+
+      <Modal
+        visible={Boolean(editingSession)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('history.edit.title')}</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
+              <View style={styles.row}>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>{t('start.leftMl')}</Text>
+                  <TextInput
+                    value={editLeftMlInput}
+                    onChangeText={setEditLeftMlInput}
+                    keyboardType="numeric"
+                    style={styles.input}
+                  />
+                </View>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>{t('start.rightMl')}</Text>
+                  <TextInput
+                    value={editRightMlInput}
+                    onChangeText={setEditRightMlInput}
+                    keyboardType="numeric"
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.fieldLabel}>{t('history.edit.dateTime')}</Text>
+              {Platform.OS === 'ios' ? (
+                <View style={styles.dateTimePickerColumn}>
+                  <DateTimePicker
+                    value={editTimestamp}
+                    mode="date"
+                    display="compact"
+                    themeVariant={preferences.themeMode}
+                    onChange={(_, nextValue) => {
+                      if (nextValue) {
+                        updateEditDatePart(nextValue);
+                      }
+                    }}
+                  />
+                  <DateTimePicker
+                    value={editTimestamp}
+                    mode="time"
+                    display="compact"
+                    themeVariant={preferences.themeMode}
+                    onChange={(_, nextValue) => {
+                      if (nextValue) {
+                        updateEditTimePart(nextValue);
+                      }
+                    }}
+                  />
+                </View>
+              ) : (
+                <View style={styles.row}>
+                  <View style={styles.fieldHalf}>
+                    <DateTimePicker
+                      value={editTimestamp}
+                      mode="date"
+                      onChange={(_, nextValue) => {
+                        if (nextValue) {
+                          updateEditDatePart(nextValue);
+                        }
+                      }}
+                    />
+                  </View>
+                  <View style={styles.fieldHalf}>
+                    <DateTimePicker
+                      value={editTimestamp}
+                      mode="time"
+                      onChange={(_, nextValue) => {
+                        if (nextValue) {
+                          updateEditTimePart(nextValue);
+                        }
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={closeEditModal}
+                disabled={savingEdit}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.chipPressed]}
+              >
+                <Text style={styles.modalSecondaryButtonText}>{t('settings.cancel')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  void onSaveEdit();
+                }}
+                disabled={savingEdit}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.modalPrimaryButton, pressed && styles.chipPressed]}
+              >
+                <Text style={styles.modalPrimaryButtonText}>
+                  {savingEdit ? t('common.working') : t('history.edit.save')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -738,6 +991,20 @@ function createStyles(colors: AppColors) {
     fontWeight: '700',
     marginBottom: 8
   },
+  sortRow: {
+    gap: 8,
+    paddingBottom: 8
+  },
+  sortChip: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   listContent: {
     paddingBottom: 24
   },
@@ -745,9 +1012,20 @@ function createStyles(colors: AppColors) {
     padding: 12,
     gap: 4
   },
+  itemHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
+  },
   itemTotal: {
     color: colors.textPrimary,
     fontSize: 22,
+    fontWeight: '700'
+  },
+  editCta: {
+    color: colors.primary,
+    fontSize: 13,
     fontWeight: '700'
   },
   itemDetail: {
@@ -757,6 +1035,85 @@ function createStyles(colors: AppColors) {
   itemNote: {
     color: colors.textPrimary,
     fontSize: 14
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    padding: 16
+  },
+  modalCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 14,
+    gap: 12,
+    maxHeight: '80%'
+  },
+  modalTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700'
+  },
+  modalContent: {
+    gap: 10
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  fieldHalf: {
+    flex: 1,
+    gap: 6
+  },
+  fieldLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  input: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    color: colors.textPrimary,
+    fontSize: 16
+  },
+  dateTimePickerColumn: {
+    gap: 10
+  },
+  modalActions: {
+    flexDirection: 'column',
+    gap: 8
+  },
+  modalSecondaryButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface
+  },
+  modalSecondaryButtonText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  modalPrimaryButton: {
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  modalPrimaryButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700'
   }
   });
 }

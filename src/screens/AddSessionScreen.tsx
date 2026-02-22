@@ -8,6 +8,7 @@ import {
   NativeSyntheticEvent,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,7 +42,7 @@ const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession, sessions, reminderSettings } = useAppData();
+  const { addSession, sessions, reminderSettings, refresh } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -56,6 +57,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [targetDurationSeconds, setTargetDurationSeconds] = useState(DEFAULT_TIMER_MINUTES * 60);
   const [remainingSeconds, setRemainingSeconds] = useState(DEFAULT_TIMER_MINUTES * 60);
   const [timerMinutesLoaded, setTimerMinutesLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [timerRunning, setTimerRunning] = useState(false);
   const [countdownStartedAtMs, setCountdownStartedAtMs] = useState<number | null>(null);
   const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
@@ -368,7 +370,6 @@ export function AddSessionScreen(): React.JSX.Element {
       setRightMlInput('0');
       setNote('');
       setTimestamp(new Date());
-      onResetTimer();
       Alert.alert(t('start.savedTitle'), t('start.savedMessage'));
     } catch (error) {
       Alert.alert(t('common.error'), reportError(error, t('start.saveErrorFallback')));
@@ -377,10 +378,32 @@ export function AddSessionScreen(): React.JSX.Element {
     }
   };
 
+  const onRefreshStartScreen = useCallback(async (): Promise<void> => {
+    try {
+      setRefreshing(true);
+      setNow(Date.now());
+      setTimestamp(new Date());
+      await refresh();
+    } catch (error) {
+      console.warn('Failed to refresh start screen.', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
+
   return (
     <Screen>
       <ScrollView
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void onRefreshStartScreen();
+            }}
+            tintColor={colors.primary}
+          />
+        }
         contentContainerStyle={styles.content}
       >
         <AppCard style={styles.lastSessionCard}>
@@ -478,7 +501,19 @@ export function AddSessionScreen(): React.JSX.Element {
           </View>
         </View>
 
-        <Text style={styles.label}>{t('start.sessionTime')}</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>{t('start.sessionTime')}</Text>
+          <Pressable
+            onPress={() => {
+              setTimestamp(new Date());
+              setNow(Date.now());
+            }}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.nowButton, pressed && styles.timerPressed]}
+          >
+            <Text style={styles.nowButtonText}>{t('start.useNow')}</Text>
+          </Pressable>
+        </View>
         {Platform.OS === 'ios' ? (
           <DateTimePicker
             value={timestamp}
@@ -643,6 +678,12 @@ function createStyles(colors: AppColors) {
     flexDirection: 'row',
     gap: 12
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12
+  },
   fieldHalf: {
     flex: 1,
     gap: 6
@@ -651,6 +692,21 @@ function createStyles(colors: AppColors) {
     fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '600'
+  },
+  nowButton: {
+    minHeight: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface
+  },
+  nowButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary
   },
   input: {
     minHeight: 50,

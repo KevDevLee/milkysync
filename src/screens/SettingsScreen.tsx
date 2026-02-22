@@ -8,6 +8,7 @@ import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
 import { useAuth } from '@/services/auth/AuthContext';
 import { familyService } from '@/services/family/FamilyService';
+import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
 import { colors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
@@ -15,6 +16,12 @@ import { reportError } from '@/utils/error';
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile, syncNow, loading } = useAppData();
   const { signOut, refreshProfile, sessionUserId } = useAuth();
+  const {
+    preferences,
+    loading: preferencesLoading,
+    setThemeMode,
+    setLanguage
+  } = useAppPreferences();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
   const [enabled, setEnabled] = useState(reminderSettings.enabled);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
@@ -97,14 +104,14 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
-  if (loading) {
+  if (loading || preferencesLoading) {
     return (
       <Screen>
         <AppCard>
           <StateMessage
             variant="loading"
             title="Loading settings..."
-            message="We are preparing your account settings."
+            message="We are preparing your account and app settings."
           />
         </AppCard>
       </Screen>
@@ -119,6 +126,46 @@ export function SettingsScreen(): React.JSX.Element {
         <Text style={styles.label}>Logged in as</Text>
         <Text style={styles.helper}>{profile.email}</Text>
         <Text style={styles.helper}>Role: {profile.role}</Text>
+      </AppCard>
+
+      <AppCard style={styles.card}>
+        <Text style={styles.sectionTitle}>App Preferences</Text>
+
+        <View style={styles.switchRow}>
+          <View style={styles.switchTextGroup}>
+            <Text style={styles.label}>Dark mode</Text>
+            <Text style={styles.helper}>
+              {preferences.themeMode === 'dark' ? 'On' : 'Off'}
+            </Text>
+          </View>
+          <Switch
+            value={preferences.themeMode === 'dark'}
+            onValueChange={(value) => {
+              void setThemeMode(value ? 'dark' : 'light');
+            }}
+            trackColor={{ true: colors.primary, false: '#d4d8d7' }}
+          />
+        </View>
+
+        <View style={styles.switchRow}>
+          <View style={styles.switchTextGroup}>
+            <Text style={styles.label}>Language (DE / EN)</Text>
+            <Text style={styles.helper}>
+              {preferences.language === 'de' ? 'Deutsch' : 'English'}
+            </Text>
+          </View>
+          <Switch
+            value={preferences.language === 'de'}
+            onValueChange={(value) => {
+              void setLanguage(value ? 'de' : 'en');
+            }}
+            trackColor={{ true: colors.primary, false: '#d4d8d7' }}
+          />
+        </View>
+
+        <Text style={styles.helper}>
+          Preferences are saved locally. Full app-wide dark mode and translations can be connected next.
+        </Text>
       </AppCard>
 
       <AppCard style={styles.card}>
@@ -202,7 +249,11 @@ const styles = StyleSheet.create({
     minHeight: 50,
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexDirection: 'row'
+    flexDirection: 'row',
+    gap: 12
+  },
+  switchTextGroup: {
+    flex: 1
   },
   helper: {
     color: colors.textSecondary,

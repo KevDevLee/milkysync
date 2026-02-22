@@ -7,11 +7,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeDatabase } from '@/db/database';
 import { AppNavigator } from '@/navigation/AppNavigator';
 import { AuthProvider } from '@/services/auth/AuthContext';
+import { AppPreferencesProvider, useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { colors } from '@/theme/colors';
 
-export default function App(): React.JSX.Element {
+function AppContent(): React.JSX.Element {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { preferences } = useAppPreferences();
 
   useEffect(() => {
     initializeDatabase()
@@ -49,11 +51,19 @@ export default function App(): React.JSX.Element {
     <SafeAreaProvider>
       <NavigationContainer>
         <AuthProvider>
-          <StatusBar style="dark" />
+          <StatusBar style={preferences.themeMode === 'dark' ? 'light' : 'dark'} />
           <AppNavigator />
         </AuthProvider>
       </NavigationContainer>
     </SafeAreaProvider>
+  );
+}
+
+export default function App(): React.JSX.Element {
+  return (
+    <AppPreferencesProvider>
+      <AppContent />
+    </AppPreferencesProvider>
   );
 }
 

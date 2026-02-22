@@ -26,6 +26,9 @@ const RING_INNER_SIZE = 120;
 const TRACK_RADIUS = (RING_OUTER_SIZE + RING_INNER_SIZE) / 4;
 const KNOB_SIZE = 24;
 const MINUTES_PER_TURN = 60;
+const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
+const TRACK_TOUCH_PADDING = 22;
+const MAX_DELTA_DEGREES_PER_EVENT = 24;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -63,6 +66,12 @@ function pointOnCircle(center: Point, radius: number, clockAngle: number): Point
   };
 }
 
+function distanceToCenter(x: number, y: number, center: Point): number {
+  const dx = x - center.x;
+  const dy = y - center.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export function CircularMinuteDial({
   value,
   minSelectable = 1,
@@ -96,6 +105,13 @@ export function CircularMinuteDial({
   const lastAngleRef = useRef<number | null>(null);
   const accumulatedAngleRef = useRef(0);
 
+  const isTouchNearTrack = (x: number, y: number): boolean => {
+    const distance = distanceToCenter(x, y, center);
+    const minRadius = RING_INNER_SIZE / 2 - TRACK_TOUCH_PADDING;
+    const maxRadius = RING_OUTER_SIZE / 2 + TRACK_TOUCH_PADDING;
+    return distance >= minRadius && distance <= maxRadius;
+  };
+
   const onLayout = (event: LayoutChangeEvent): void => {
     const { width, height } = event.nativeEvent.layout;
     const nextWidth = Math.round(width);
@@ -111,6 +127,12 @@ export function CircularMinuteDial({
     }
 
     const nextAngle = getClockAngleFromTouch(locationX, locationY, center);
+    if (!isTouchNearTrack(locationX, locationY)) {
+      // Re-sync angle while outside the active ring to avoid large jumps on re-entry.
+      lastAngleRef.current = nextAngle;
+      return;
+    }
+
     const prevAngle = lastAngleRef.current;
     if (prevAngle === null) {
       lastAngleRef.current = nextAngle;
@@ -118,10 +140,11 @@ export function CircularMinuteDial({
     }
 
     const delta = shortestAngleDelta(nextAngle, prevAngle);
-    accumulatedAngleRef.current += delta;
+    const clampedDelta = clamp(delta, -MAX_DELTA_DEGREES_PER_EVENT, MAX_DELTA_DEGREES_PER_EVENT);
+    accumulatedAngleRef.current += clampedDelta;
     lastAngleRef.current = nextAngle;
 
-    const minuteDelta = Math.round(accumulatedAngleRef.current / (360 / MINUTES_PER_TURN));
+    const minuteDelta = Math.trunc(accumulatedAngleRef.current / DEGREES_PER_MINUTE);
     const nextValue = clamp(dragStartValueRef.current + minuteDelta, minSelectable, safeMax);
     if (nextValue !== clampedValue) {
       onChange(nextValue);
@@ -131,8 +154,10 @@ export function CircularMinuteDial({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
-        onMoveShouldSetPanResponder: () => !disabled,
+        onStartShouldSetPanResponder: (event) =>
+          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
+        onMoveShouldSetPanResponder: (event) =>
+          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
         onPanResponderGrant: (event) => {
           if (disabled) {
             return;

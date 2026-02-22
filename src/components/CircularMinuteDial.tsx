@@ -1,122 +1,118 @@
-import { useMemo, useState } from 'react';
-import {
-  GestureResponderEvent,
-  LayoutChangeEvent,
-  PanResponder,
-  StyleSheet,
-  Text,
-  View
-} from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { useAppColors } from '@/theme/colors';
 
 type CircularMinuteDialProps = {
   value: number;
-  max: number;
   minSelectable?: number;
+  max: number;
   disabled?: boolean;
   onChange: (value: number) => void;
+  onInteractionChange?: (isInteracting: boolean) => void;
 };
 
-const START_ANGLE_CLOCK = 225; // bottom-left
-const END_ANGLE_CLOCK = 495; // wraps to bottom-right, passing top
-const ARC_SPAN_DEG = END_ANGLE_CLOCK - START_ANGLE_CLOCK;
-const DIAL_SIZE = 212;
-const RING_SIZE = 172;
-const KNOB_SIZE = 18;
+type Point = {
+  x: number;
+  y: number;
+};
 
-type Point = { x: number; y: number };
+const DIAL_SIZE = 228;
+const RING_OUTER_SIZE = 188;
+const RING_INNER_SIZE = 120;
+const TRACK_RADIUS = (RING_OUTER_SIZE + RING_INNER_SIZE) / 4;
+const KNOB_SIZE = 24;
+const MINUTES_PER_TURN = 60;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function toRadians(clockAngle: number): number {
-  return (clockAngle * Math.PI) / 180;
+function normalizeAngle(angle: number): number {
+  let next = angle % 360;
+  if (next < 0) {
+    next += 360;
+  }
+  return next;
 }
 
-function getPointFromClockAngle(center: Point, radius: number, clockAngle: number): Point {
-  const rad = toRadians(clockAngle);
+function getClockAngleFromTouch(x: number, y: number, center: Point): number {
+  const dx = x - center.x;
+  const dy = y - center.y;
+  return normalizeAngle((Math.atan2(dx, -dy) * 180) / Math.PI);
+}
+
+function shortestAngleDelta(next: number, prev: number): number {
+  let delta = next - prev;
+  if (delta > 180) {
+    delta -= 360;
+  } else if (delta < -180) {
+    delta += 360;
+  }
+  return delta;
+}
+
+function pointOnCircle(center: Point, radius: number, clockAngle: number): Point {
+  const rad = (clockAngle * Math.PI) / 180;
   return {
     x: center.x + Math.sin(rad) * radius,
     y: center.y - Math.cos(rad) * radius
   };
 }
 
-function getClockAngleFromTouch(x: number, y: number, center: Point): number {
-  const dx = x - center.x;
-  const dy = y - center.y;
-  let angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
-  if (angle < 0) {
-    angle += 360;
-  }
-  return angle;
-}
-
-function projectAngleToDial(clockAngle: number): number {
-  const candidates = [clockAngle, clockAngle + 360];
-  let bestProjected = START_ANGLE_CLOCK;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const candidate of candidates) {
-    const projected = clamp(candidate, START_ANGLE_CLOCK, END_ANGLE_CLOCK);
-    const distance = Math.abs(candidate - projected);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestProjected = projected;
-    }
-  }
-
-  return bestProjected;
-}
-
 export function CircularMinuteDial({
   value,
-  max,
   minSelectable = 1,
+  max,
   disabled = false,
-  onChange
+  onChange,
+  onInteractionChange
 }: CircularMinuteDialProps): React.JSX.Element {
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(), []);
-  const [layoutSize, setLayoutSize] = useState<Point>({ x: DIAL_SIZE, y: DIAL_SIZE });
-  const center = useMemo<Point>(
-    () => ({ x: layoutSize.x / 2, y: layoutSize.y / 2 }),
-    [layoutSize.x, layoutSize.y]
-  );
+  const [dialSize, setDialSize] = useState<Point>({ x: DIAL_SIZE, y: DIAL_SIZE });
+  const center = useMemo<Point>(() => ({ x: dialSize.x / 2, y: dialSize.y / 2 }), [dialSize.x, dialSize.y]);
 
-  const safeMax = Math.max(1, max);
-  const clampedValue = clamp(value, 0, safeMax);
-  const progress = clampedValue / safeMax;
-  const indicatorAngle = START_ANGLE_CLOCK + progress * ARC_SPAN_DEG;
-  const knobPoint = getPointFromClockAngle(center, RING_SIZE / 2, indicatorAngle);
+  const safeMax = Math.max(minSelectable, max);
+  const clampedValue = clamp(value, minSelectable, safeMax);
+  const angleForKnob = normalizeAngle(((clampedValue % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
+  const knobPoint = pointOnCircle(center, TRACK_RADIUS, angleForKnob);
+  const fullTurns = Math.floor(clampedValue / MINUTES_PER_TURN);
 
-  const tickValues = useMemo(
-    () => Array.from({ length: 13 }, (_, index) => Math.round((index / 12) * safeMax)),
-    [safeMax]
-  );
+  const dragStartValueRef = useRef(clampedValue);
+  const lastAngleRef = useRef<number | null>(null);
+  const accumulatedAngleRef = useRef(0);
 
-  const onDialLayout = (event: LayoutChangeEvent): void => {
+  const onLayout = (event: LayoutChangeEvent): void => {
     const { width, height } = event.nativeEvent.layout;
     const nextWidth = Math.round(width);
     const nextHeight = Math.round(height);
-    if (nextWidth !== layoutSize.x || nextHeight !== layoutSize.y) {
-      setLayoutSize({ x: nextWidth, y: nextHeight });
+    if (nextWidth !== dialSize.x || nextHeight !== dialSize.y) {
+      setDialSize({ x: nextWidth, y: nextHeight });
     }
   };
 
-  const updateFromTouch = (event: GestureResponderEvent): void => {
+  const updateFromTouch = (locationX: number, locationY: number): void => {
     if (disabled) {
       return;
     }
 
-    const { locationX, locationY } = event.nativeEvent;
-    const touchAngle = getClockAngleFromTouch(locationX, locationY, center);
-    const projected = projectAngleToDial(touchAngle);
-    const nextProgress = (projected - START_ANGLE_CLOCK) / ARC_SPAN_DEG;
-    const rawMinutes = Math.round(nextProgress * safeMax);
-    const nextMinutes = clamp(rawMinutes, minSelectable, safeMax);
-    onChange(nextMinutes);
+    const nextAngle = getClockAngleFromTouch(locationX, locationY, center);
+    const prevAngle = lastAngleRef.current;
+    if (prevAngle === null) {
+      lastAngleRef.current = nextAngle;
+      return;
+    }
+
+    const delta = shortestAngleDelta(nextAngle, prevAngle);
+    accumulatedAngleRef.current += delta;
+    lastAngleRef.current = nextAngle;
+
+    const minuteDelta = Math.round(accumulatedAngleRef.current / (360 / MINUTES_PER_TURN));
+    const nextValue = clamp(dragStartValueRef.current + minuteDelta, minSelectable, safeMax);
+    if (nextValue !== clampedValue) {
+      onChange(nextValue);
+    }
   };
 
   const panResponder = useMemo(
@@ -124,63 +120,91 @@ export function CircularMinuteDial({
       PanResponder.create({
         onStartShouldSetPanResponder: () => !disabled,
         onMoveShouldSetPanResponder: () => !disabled,
-        onPanResponderGrant: updateFromTouch,
-        onPanResponderMove: updateFromTouch
+        onPanResponderGrant: (event) => {
+          if (disabled) {
+            return;
+          }
+          dragStartValueRef.current = clampedValue;
+          accumulatedAngleRef.current = 0;
+          lastAngleRef.current = getClockAngleFromTouch(
+            event.nativeEvent.locationX,
+            event.nativeEvent.locationY,
+            center
+          );
+          onInteractionChange?.(true);
+        },
+        onPanResponderMove: (event) => {
+          updateFromTouch(event.nativeEvent.locationX, event.nativeEvent.locationY);
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: () => {
+          lastAngleRef.current = null;
+          accumulatedAngleRef.current = 0;
+          onInteractionChange?.(false);
+        },
+        onPanResponderTerminate: () => {
+          lastAngleRef.current = null;
+          accumulatedAngleRef.current = 0;
+          onInteractionChange?.(false);
+        }
       }),
-    [center, disabled, layoutSize.x, layoutSize.y, minSelectable, onChange, safeMax]
+    [center, clampedValue, disabled, minSelectable, onChange, onInteractionChange, safeMax]
   );
 
-  const scaleLabelPositions = useMemo(() => {
-    const radius = RING_SIZE / 2 + 30;
-    return {
-      min: getPointFromClockAngle(center, radius, START_ANGLE_CLOCK),
-      mid: getPointFromClockAngle(center, radius, START_ANGLE_CLOCK + ARC_SPAN_DEG / 2),
-      max: getPointFromClockAngle(center, radius, END_ANGLE_CLOCK)
-    };
-  }, [center]);
+  const tickAngles = useMemo(() => Array.from({ length: 60 }, (_, index) => index * 6), []);
 
   return (
     <View
-      style={[styles.container, disabled && { opacity: 0.72 }]}
-      onLayout={onDialLayout}
+      onLayout={onLayout}
+      style={[styles.container, disabled && { opacity: 0.7 }]}
       {...panResponder.panHandlers}
     >
       <View
         style={[
-          styles.ring,
+          styles.outerRing,
           {
-            width: RING_SIZE,
-            height: RING_SIZE,
+            width: RING_OUTER_SIZE,
+            height: RING_OUTER_SIZE,
             borderColor: colors.border,
             backgroundColor: colors.surface
           }
         ]}
       />
 
-      {tickValues.map((tickValue, index) => {
-        const tickProgress = tickValue / safeMax;
-        const tickAngle = START_ANGLE_CLOCK + tickProgress * ARC_SPAN_DEG;
-        const tickCenter = getPointFromClockAngle(center, RING_SIZE / 2, tickAngle);
-        const isMajor = index % 3 === 0;
-        const isActive = tickValue <= clampedValue;
+      {tickAngles.map((angle, index) => {
+        const tickCenter = pointOnCircle(center, TRACK_RADIUS, angle);
+        const major = index % 5 === 0;
+        const active = index <= ((clampedValue % MINUTES_PER_TURN) || 0);
         return (
           <View
-            key={`tick-${tickValue}-${index}`}
+            key={`tick-${angle}`}
             style={[
               styles.tick,
               {
-                width: isMajor ? 4 : 3,
-                height: isMajor ? 14 : 9,
+                width: major ? 4 : 3,
+                height: major ? 16 : 10,
                 borderRadius: 2,
-                backgroundColor: isActive ? colors.primary : colors.border,
-                left: tickCenter.x - (isMajor ? 2 : 1.5),
-                top: tickCenter.y - (isMajor ? 7 : 4.5),
-                transform: [{ rotate: `${tickAngle}deg` }]
+                backgroundColor: active ? colors.primary : colors.border,
+                left: tickCenter.x - (major ? 2 : 1.5),
+                top: tickCenter.y - (major ? 8 : 5),
+                transform: [{ rotate: `${angle}deg` }]
               }
             ]}
           />
         );
       })}
+
+      <View
+        style={[
+          styles.innerRing,
+          {
+            width: RING_INNER_SIZE,
+            height: RING_INNER_SIZE,
+            borderColor: colors.border,
+            backgroundColor: colors.background
+          }
+        ]}
+      />
 
       <View
         style={[
@@ -199,33 +223,11 @@ export function CircularMinuteDial({
 
       <View style={styles.centerContent}>
         <Text style={[styles.valueText, { color: colors.textPrimary }]}>{clampedValue}</Text>
-        <Text style={[styles.unitText, { color: colors.textSecondary }]}>min</Text>
+        <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>minutes</Text>
+        <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
+          {fullTurns} turns + {clampedValue % MINUTES_PER_TURN}m
+        </Text>
       </View>
-
-      <Text
-        style={[
-          styles.scaleLabel,
-          { color: colors.textSecondary, left: scaleLabelPositions.min.x - 16, top: scaleLabelPositions.min.y - 8 }
-        ]}
-      >
-        0
-      </Text>
-      <Text
-        style={[
-          styles.scaleLabel,
-          { color: colors.textSecondary, left: scaleLabelPositions.mid.x - 20, top: scaleLabelPositions.mid.y - 10 }
-        ]}
-      >
-        180
-      </Text>
-      <Text
-        style={[
-          styles.scaleLabel,
-          { color: colors.textSecondary, left: scaleLabelPositions.max.x - 24, top: scaleLabelPositions.max.y - 8 }
-        ]}
-      >
-        360
-      </Text>
     </View>
   );
 }
@@ -239,40 +241,42 @@ function createStyles() {
       justifyContent: 'center',
       position: 'relative'
     },
-    ring: {
-      borderWidth: 1,
-      borderRadius: RING_SIZE / 2
+    outerRing: {
+      position: 'absolute',
+      borderRadius: RING_OUTER_SIZE / 2,
+      borderWidth: 1
+    },
+    innerRing: {
+      position: 'absolute',
+      borderRadius: RING_INNER_SIZE / 2,
+      borderWidth: 1
     },
     tick: {
       position: 'absolute'
     },
     knob: {
       position: 'absolute',
-      borderWidth: 2
+      borderWidth: 3
     },
     centerContent: {
-      position: 'absolute',
       alignItems: 'center',
       justifyContent: 'center'
     },
     valueText: {
-      fontSize: 38,
+      fontSize: 34,
       fontWeight: '700',
       fontVariant: ['tabular-nums']
     },
-    unitText: {
-      marginTop: -2,
+    valueUnitText: {
       fontSize: 12,
       fontWeight: '700',
       textTransform: 'uppercase',
       letterSpacing: 0.5
     },
-    scaleLabel: {
-      position: 'absolute',
-      fontSize: 13,
-      fontWeight: '700',
-      minWidth: 32,
-      textAlign: 'center'
+    turnsText: {
+      marginTop: 4,
+      fontSize: 11,
+      fontWeight: '600'
     }
   });
 }

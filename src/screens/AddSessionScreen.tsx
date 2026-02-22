@@ -63,6 +63,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
   const [nextRoundMinutes, setNextRoundMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [now, setNow] = useState(Date.now());
+  const [dialInteracting, setDialInteracting] = useState(false);
   const nextRoundWheelRef = useRef<ScrollView>(null);
   const nextRoundWheelMomentumRef = useRef(false);
   const nextRoundDefaultMinutes = Math.max(
@@ -335,6 +336,7 @@ export function AddSessionScreen(): React.JSX.Element {
   return (
     <Screen>
       <ScrollView
+        scrollEnabled={!dialInteracting}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -371,6 +373,7 @@ export function AddSessionScreen(): React.JSX.Element {
               max={MAX_SESSION_TIMER_MINUTES}
               minSelectable={MIN_SELECTABLE_MINUTES}
               disabled={timerRunning}
+              onInteractionChange={setDialInteracting}
               onChange={(nextValue) => {
                 setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextValue));
               }}

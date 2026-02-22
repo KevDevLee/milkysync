@@ -104,6 +104,7 @@ export function CircularMinuteDial({
   const dragStartValueRef = useRef(clampedValue);
   const lastAngleRef = useRef<number | null>(null);
   const accumulatedAngleRef = useRef(0);
+  const dragActiveRef = useRef(false);
 
   const isTouchNearTrack = (x: number, y: number): boolean => {
     const distance = distanceToCenter(x, y, center);
@@ -154,36 +155,51 @@ export function CircularMinuteDial({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: (event) =>
-          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
-        onMoveShouldSetPanResponder: (event) =>
-          !disabled && isTouchNearTrack(event.nativeEvent.locationX, event.nativeEvent.locationY),
+        onStartShouldSetPanResponder: () => !disabled,
+        onMoveShouldSetPanResponder: () => !disabled,
         onPanResponderGrant: (event) => {
           if (disabled) {
             return;
           }
+          const { locationX, locationY } = event.nativeEvent;
           dragStartValueRef.current = clampedValue;
           accumulatedAngleRef.current = 0;
-          lastAngleRef.current = getClockAngleFromTouch(
-            event.nativeEvent.locationX,
-            event.nativeEvent.locationY,
-            center
-          );
-          onInteractionChange?.(true);
+          lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, center);
+          dragActiveRef.current = isTouchNearTrack(locationX, locationY);
+          if (dragActiveRef.current) {
+            onInteractionChange?.(true);
+          }
         },
         onPanResponderMove: (event) => {
-          updateFromTouch(event.nativeEvent.locationX, event.nativeEvent.locationY);
+          const { locationX, locationY } = event.nativeEvent;
+          if (!dragActiveRef.current && isTouchNearTrack(locationX, locationY)) {
+            dragActiveRef.current = true;
+            dragStartValueRef.current = clampedValue;
+            accumulatedAngleRef.current = 0;
+            lastAngleRef.current = getClockAngleFromTouch(locationX, locationY, center);
+            onInteractionChange?.(true);
+            return;
+          }
+          updateFromTouch(locationX, locationY);
         },
         onPanResponderTerminationRequest: () => false,
         onPanResponderRelease: () => {
+          const wasActive = dragActiveRef.current;
+          dragActiveRef.current = false;
           lastAngleRef.current = null;
           accumulatedAngleRef.current = 0;
-          onInteractionChange?.(false);
+          if (wasActive) {
+            onInteractionChange?.(false);
+          }
         },
         onPanResponderTerminate: () => {
+          const wasActive = dragActiveRef.current;
+          dragActiveRef.current = false;
           lastAngleRef.current = null;
           accumulatedAngleRef.current = 0;
-          onInteractionChange?.(false);
+          if (wasActive) {
+            onInteractionChange?.(false);
+          }
         }
       }),
     [center, clampedValue, disabled, minSelectable, onChange, onInteractionChange, safeMax]
@@ -203,6 +219,8 @@ export function CircularMinuteDial({
           {
             width: RING_OUTER_SIZE,
             height: RING_OUTER_SIZE,
+            left: center.x - RING_OUTER_SIZE / 2,
+            top: center.y - RING_OUTER_SIZE / 2,
             borderColor: colors.border,
             backgroundColor: colors.surface
           }
@@ -239,6 +257,8 @@ export function CircularMinuteDial({
           {
             width: RING_INNER_SIZE,
             height: RING_INNER_SIZE,
+            left: center.x - RING_INNER_SIZE / 2,
+            top: center.y - RING_INNER_SIZE / 2,
             borderColor: colors.border,
             backgroundColor: colors.background
           }

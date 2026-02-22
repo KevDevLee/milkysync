@@ -8,6 +8,9 @@ type CircularMinuteDialProps = {
   minSelectable?: number;
   max: number;
   disabled?: boolean;
+  countdownSeconds?: number | null;
+  countdownTotalSeconds?: number | null;
+  showCountdown?: boolean;
   onChange: (value: number) => void;
   onInteractionChange?: (isInteracting: boolean) => void;
 };
@@ -65,6 +68,9 @@ export function CircularMinuteDial({
   minSelectable = 1,
   max,
   disabled = false,
+  countdownSeconds = null,
+  countdownTotalSeconds = null,
+  showCountdown = false,
   onChange,
   onInteractionChange
 }: CircularMinuteDialProps): React.JSX.Element {
@@ -75,9 +81,16 @@ export function CircularMinuteDial({
 
   const safeMax = Math.max(minSelectable, max);
   const clampedValue = clamp(value, minSelectable, safeMax);
-  const angleForKnob = normalizeAngle(((clampedValue % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
+  const countdownMode = showCountdown && countdownSeconds !== null && countdownTotalSeconds !== null;
+  const safeCountdownSeconds = countdownMode ? Math.max(0, countdownSeconds) : null;
+  const countdownMinutesFloat = countdownMode && safeCountdownSeconds !== null ? safeCountdownSeconds / 60 : null;
+  const dialMinutesForPosition = countdownMode && countdownMinutesFloat !== null ? countdownMinutesFloat : clampedValue;
+  const angleForKnob = normalizeAngle(((dialMinutesForPosition % MINUTES_PER_TURN) / MINUTES_PER_TURN) * 360);
   const knobPoint = pointOnCircle(center, TRACK_RADIUS, angleForKnob);
-  const fullTurns = Math.floor(clampedValue / MINUTES_PER_TURN);
+  const fullTurns = Math.floor(dialMinutesForPosition / MINUTES_PER_TURN);
+  const minuteCycleValueRaw = dialMinutesForPosition % MINUTES_PER_TURN;
+  const minuteCycleValue =
+    minuteCycleValueRaw === 0 && dialMinutesForPosition > 0 ? MINUTES_PER_TURN : minuteCycleValueRaw;
 
   const dragStartValueRef = useRef(clampedValue);
   const lastAngleRef = useRef<number | null>(null);
@@ -174,7 +187,8 @@ export function CircularMinuteDial({
       {tickAngles.map((angle, index) => {
         const tickCenter = pointOnCircle(center, TRACK_RADIUS, angle);
         const major = index % 5 === 0;
-        const active = index <= ((clampedValue % MINUTES_PER_TURN) || 0);
+        const activeThreshold = minuteCycleValue;
+        const active = index < activeThreshold;
         return (
           <View
             key={`tick-${angle}`}
@@ -222,11 +236,26 @@ export function CircularMinuteDial({
       />
 
       <View style={styles.centerContent}>
-        <Text style={[styles.valueText, { color: colors.textPrimary }]}>{clampedValue}</Text>
-        <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>minutes</Text>
-        <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
-          {fullTurns} turns + {clampedValue % MINUTES_PER_TURN}m
-        </Text>
+        {countdownMode && safeCountdownSeconds !== null ? (
+          <>
+            <Text style={[styles.timerText, { color: colors.textPrimary }]}>
+              {String(Math.floor(safeCountdownSeconds / 60)).padStart(2, '0')}:
+              {String(safeCountdownSeconds % 60).padStart(2, '0')}
+            </Text>
+            <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>remaining</Text>
+            <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
+              {fullTurns} turn{fullTurns === 1 ? '' : 's'} + {Math.floor(minuteCycleValueRaw)}m
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.valueText, { color: colors.textPrimary }]}>{clampedValue}</Text>
+            <Text style={[styles.valueUnitText, { color: colors.textSecondary }]}>minutes</Text>
+            <Text style={[styles.turnsText, { color: colors.textSecondary }]}>
+              {fullTurns} turn{fullTurns === 1 ? '' : 's'} + {clampedValue % MINUTES_PER_TURN}m
+            </Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -264,6 +293,11 @@ function createStyles() {
     },
     valueText: {
       fontSize: 34,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums']
+    },
+    timerText: {
+      fontSize: 30,
       fontWeight: '700',
       fontVariant: ['tabular-nums']
     },

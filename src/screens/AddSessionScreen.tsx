@@ -211,7 +211,6 @@ export function AddSessionScreen(): React.JSX.Element {
   }, [selectedMinutes, timerMinutesLoaded]);
 
   const displayMinutes = Math.floor(remainingSeconds / 60);
-  const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
   const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
@@ -367,22 +366,19 @@ export function AddSessionScreen(): React.JSX.Element {
 
         <Text style={styles.label}>{t('start.duration')}</Text>
         <View style={styles.minutePickerGroup}>
-          <View style={styles.timeDisplayRow}>
-            <CircularMinuteDial
-              value={wheelMinuteValue}
-              max={MAX_SESSION_TIMER_MINUTES}
-              minSelectable={MIN_SELECTABLE_MINUTES}
-              disabled={timerRunning}
-              onInteractionChange={setDialInteracting}
-              onChange={(nextValue) => {
-                setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextValue));
-              }}
-            />
-            <Text style={styles.timeDivider}>:</Text>
-            <View style={styles.secondsBox}>
-              <Text style={styles.secondsValue}>{String(displaySeconds).padStart(2, '0')}</Text>
-            </View>
-          </View>
+          <CircularMinuteDial
+            value={wheelMinuteValue}
+            max={MAX_SESSION_TIMER_MINUTES}
+            minSelectable={MIN_SELECTABLE_MINUTES}
+            disabled={timerRunning}
+            countdownSeconds={timerRunning || hasPartialCountdown ? remainingSeconds : null}
+            countdownTotalSeconds={timerRunning || hasPartialCountdown ? targetDurationSeconds : null}
+            showCountdown={timerRunning || hasPartialCountdown}
+            onInteractionChange={setDialInteracting}
+            onChange={(nextValue) => {
+              setSelectedMinutes(Math.max(MIN_SELECTABLE_MINUTES, nextValue));
+            }}
+          />
           <Text style={styles.minuteUnitLabel}>{t('start.minutes')}</Text>
         </View>
 
@@ -649,37 +645,10 @@ function createStyles(colors: AppColors) {
     alignSelf: 'center',
     gap: 10
   },
-  timeDisplayRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
-  },
   minuteUnitLabel: {
     color: colors.textPrimary,
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '700'
-  },
-  timeDivider: {
-    color: colors.textPrimary,
-    fontSize: 42,
-    fontWeight: '700'
-  },
-  secondsBox: {
-    minWidth: 92,
-    height: 86,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12
-  },
-  secondsValue: {
-    color: colors.textPrimary,
-    fontSize: 42,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums']
   },
   minuteWheelContent: {
     paddingVertical: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2

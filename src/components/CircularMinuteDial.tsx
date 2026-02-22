@@ -20,14 +20,14 @@ type Point = {
   y: number;
 };
 
-const DIAL_SIZE = 228;
-const RING_OUTER_SIZE = 188;
-const RING_INNER_SIZE = 120;
+const DIAL_SIZE = 320;
+const RING_OUTER_SIZE = 264;
+const RING_INNER_SIZE = 168;
 const TRACK_RADIUS = (RING_OUTER_SIZE + RING_INNER_SIZE) / 4;
-const KNOB_SIZE = 24;
+const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
-const TRACK_TOUCH_PADDING = 22;
+const TRACK_TOUCH_PADDING = 28;
 const MAX_DELTA_DEGREES_PER_EVENT = 24;
 
 function clamp(value: number, min: number, max: number): number {
@@ -337,24 +337,24 @@ function createStyles() {
       justifyContent: 'center'
     },
     valueText: {
-      fontSize: 34,
+      fontSize: 48,
       fontWeight: '700',
       fontVariant: ['tabular-nums']
     },
     timerText: {
-      fontSize: 30,
+      fontSize: 42,
       fontWeight: '700',
       fontVariant: ['tabular-nums']
     },
     valueUnitText: {
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: '700',
       textTransform: 'uppercase',
       letterSpacing: 0.5
     },
     turnsText: {
       marginTop: 4,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: '600'
     }
   });

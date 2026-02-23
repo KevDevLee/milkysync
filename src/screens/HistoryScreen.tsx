@@ -256,13 +256,7 @@ export function HistoryScreen(): React.JSX.Element {
 
   const rangeTotalLabelKey = useMemo(() => {
     if (selectedRange === 'day') {
-      if (periodOffset === 0) {
-        return 'history.totalLabel.today';
-      }
-      if (periodOffset === -1) {
-        return 'history.totalLabel.yesterday';
-      }
-      return 'history.totalLabel.day';
+      return 'history.totalLabel.total';
     }
     if (selectedRange === 'week') {
       return 'history.totalLabel.week';

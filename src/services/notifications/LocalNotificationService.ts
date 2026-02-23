@@ -7,7 +7,7 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false
   })
 });
@@ -35,7 +35,8 @@ export class LocalNotificationService implements NotificationService {
       content: {
         title: input.title,
         body: input.body,
-        data: input.data
+        data: input.data,
+        sound: 'default'
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,

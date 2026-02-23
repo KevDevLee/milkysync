@@ -35,7 +35,7 @@ const NEXT_ROUND_MINUTE_OPTIONS = Array.from(
   { length: MAX_NEXT_ROUND_TIMER_MINUTES + 1 },
   (_, index) => index
 );
-const MINUTE_ITEM_HEIGHT = 72;
+const MINUTE_ITEM_HEIGHT = 50;
 const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
@@ -754,9 +754,9 @@ function createStyles(colors: AppColors) {
     justifyContent: 'center'
   },
   minuteWheelContainer: {
-    width: 168,
+    width: 118,
     height: MINUTE_WHEEL_HEIGHT,
-    borderRadius: 36,
+    borderRadius: 25,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -769,7 +769,7 @@ function createStyles(colors: AppColors) {
   minutePickerGroup: {
     alignItems: 'center',
     alignSelf: 'center',
-    gap: 10
+    gap: 7
   },
   minuteWheelLoadingPlaceholder: {
     flex: 1
@@ -777,32 +777,32 @@ function createStyles(colors: AppColors) {
   timeDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 7
   },
   minuteUnitLabel: {
     color: colors.textPrimary,
-    fontSize: 42,
+    fontSize: 29,
     fontWeight: '700'
   },
   timeDivider: {
     color: colors.textPrimary,
-    fontSize: 48,
+    fontSize: 34,
     fontWeight: '700'
   },
   secondsBox: {
-    minWidth: 112,
+    minWidth: 78,
     height: MINUTE_WHEEL_HEIGHT,
-    borderRadius: 24,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12
+    paddingHorizontal: 8
   },
   secondsValue: {
     color: colors.textPrimary,
-    fontSize: 54,
+    fontSize: 38,
     fontWeight: '700',
     fontVariant: ['tabular-nums']
   },
@@ -819,7 +819,7 @@ function createStyles(colors: AppColors) {
   },
   minuteWheelItemText: {
     color: colors.textSecondary,
-    fontSize: 42,
+    fontSize: 29,
     fontWeight: '600',
     opacity: 0.55,
     fontVariant: ['tabular-nums']
@@ -827,17 +827,17 @@ function createStyles(colors: AppColors) {
   minuteWheelItemTextActive: {
     color: colors.textPrimary,
     fontWeight: '700',
-    fontSize: 54,
+    fontSize: 38,
     opacity: 1,
     fontVariant: ['tabular-nums']
   },
   minuteWheelCenterMarker: {
     position: 'absolute',
-    left: 18,
-    right: 18,
+    left: 12,
+    right: 12,
     top: (MINUTE_WHEEL_HEIGHT - MINUTE_ITEM_HEIGHT) / 2,
     height: MINUTE_ITEM_HEIGHT,
-    borderRadius: 30,
+    borderRadius: 21,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent'

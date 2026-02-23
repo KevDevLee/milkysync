@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { AppColors, useAppColors } from '@/theme/colors';
+import { radii, spacing, typeScale } from '@/theme/tokens';
 
 type AppInputProps = TextInputProps & {
   label?: string;
@@ -53,16 +54,16 @@ export function AppInput({
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
     field: {
-      gap: 6
+      gap: spacing.xs + 2
     },
     label: {
-      fontSize: 14,
+      fontSize: typeScale.body,
       color: colors.textSecondary,
       fontWeight: '600'
     },
     inputShell: {
       minHeight: 50,
-      borderRadius: 12,
+      borderRadius: radii.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
@@ -75,19 +76,19 @@ function createStyles(colors: AppColors) {
     input: {
       flex: 1,
       minHeight: 50,
-      paddingHorizontal: 12,
-      fontSize: 16,
+      paddingHorizontal: spacing.md,
+      fontSize: typeScale.bodyLg,
       color: colors.textPrimary
     },
     rightAccessory: {
-      paddingHorizontal: 8
+      paddingHorizontal: spacing.sm
     },
     helperText: {
-      fontSize: 13,
+      fontSize: typeScale.bodySm,
       color: colors.textSecondary
     },
     errorText: {
-      fontSize: 13,
+      fontSize: typeScale.bodySm,
       color: colors.danger
     }
   });

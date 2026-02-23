@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 
 import { AppColors, useAppColors } from '@/theme/colors';
+import { radii, spacing, typeScale } from '@/theme/tokens';
 
 type AppButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -62,10 +63,10 @@ function createStyles(colors: AppColors) {
   return StyleSheet.create({
     base: {
       minHeight: 50,
-      borderRadius: 12,
+      borderRadius: radii.md,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 14
+      paddingHorizontal: spacing.md
     },
     pressed: {
       opacity: 0.86
@@ -89,7 +90,7 @@ function createStyles(colors: AppColors) {
       borderWidth: 1
     },
     baseLabel: {
-      fontSize: 16,
+      fontSize: typeScale.bodyLg,
       fontWeight: '700'
     },
     primaryLabel: {

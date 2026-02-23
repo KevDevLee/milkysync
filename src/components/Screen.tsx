@@ -3,6 +3,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppColors, useAppColors } from '@/theme/colors';
+import { spacing } from '@/theme/tokens';
 
 type ScreenProps = PropsWithChildren<{
   style?: ViewStyle;
@@ -27,8 +28,8 @@ function createStyles(colors: AppColors) {
     },
     container: {
       flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: 14
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.md
     }
   });
 }

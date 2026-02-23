@@ -1,5 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -212,7 +212,7 @@ function buildYAxisTicks(axisMax: number): number[] {
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, loading, refresh, updateSession, deleteSession } = useAppData();
+  const { sessions, loading, refresh, updateSession, deleteSession, restoreSession } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -228,6 +228,23 @@ export function HistoryScreen(): React.JSX.Element {
   const [editTimestamp, setEditTimestamp] = useState<Date>(new Date());
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingEdit, setDeletingEdit] = useState(false);
+  const [historyFeedback, setHistoryFeedback] = useState<{
+    messageKey: string;
+    undoSessionId?: string;
+  } | null>(null);
+  const [restoringDeleted, setRestoringDeleted] = useState(false);
+
+  useEffect(() => {
+    if (!historyFeedback) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setHistoryFeedback(null);
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [historyFeedback]);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -500,7 +517,10 @@ export function HistoryScreen(): React.JSX.Element {
               setDeletingEdit(true);
               await deleteSession(editingSession.id);
               setEditingSessionId(null);
-              Alert.alert(t('common.saved'), t('history.edit.deleteSuccess'));
+              setHistoryFeedback({
+                messageKey: 'history.edit.deleteUndoHint',
+                undoSessionId: editingSession.id
+              });
             } catch (error) {
               Alert.alert(t('common.error'), reportError(error, t('history.edit.deleteError')));
             } finally {
@@ -534,6 +554,22 @@ export function HistoryScreen(): React.JSX.Element {
       await refresh();
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : t('history.errorTitle'));
+    }
+  };
+
+  const onUndoDelete = async (): Promise<void> => {
+    if (!historyFeedback?.undoSessionId || restoringDeleted) {
+      return;
+    }
+
+    try {
+      setRestoringDeleted(true);
+      await restoreSession(historyFeedback.undoSessionId);
+      setHistoryFeedback({ messageKey: 'history.edit.undoDeleteSuccess' });
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('history.edit.undoDeleteError')));
+    } finally {
+      setRestoringDeleted(false);
     }
   };
 
@@ -903,6 +939,26 @@ export function HistoryScreen(): React.JSX.Element {
           </View>
         </View>
       </Modal>
+
+      {historyFeedback ? (
+        <View style={styles.feedbackBanner}>
+          <Text style={styles.feedbackBannerText}>{t(historyFeedback.messageKey)}</Text>
+          {historyFeedback.undoSessionId ? (
+            <Pressable
+              onPress={() => {
+                void onUndoDelete();
+              }}
+              disabled={restoringDeleted}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.feedbackBannerAction, pressed && styles.chipPressed]}
+            >
+              <Text style={styles.feedbackBannerActionText}>
+                {restoringDeleted ? t('common.working') : t('common.undo')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -1089,6 +1145,42 @@ function createStyles(colors: AppColors) {
   },
   listContent: {
     paddingBottom: 24
+  },
+  feedbackBanner: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 14,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10
+  },
+  feedbackBannerText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  feedbackBannerAction: {
+    minHeight: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10
+  },
+  feedbackBannerActionText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700'
   },
   itemCard: {
     padding: 12,

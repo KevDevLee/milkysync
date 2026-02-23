@@ -43,7 +43,7 @@ const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 const QUICK_ML_INCREMENTS = [10, 20, 30] as const;
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
+  const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -65,6 +65,11 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
   const [nextRoundMinutes, setNextRoundMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [now, setNow] = useState(Date.now());
+  const [startFeedback, setStartFeedback] = useState<{
+    messageKey: string;
+    undoSessionId?: string;
+  } | null>(null);
+  const [undoingSave, setUndoingSave] = useState(false);
   const leftMlInputRef = useRef<TextInput>(null);
   const rightMlInputRef = useRef<TextInput>(null);
   const minuteWheelRef = useRef<ScrollView>(null);
@@ -86,6 +91,18 @@ export function AddSessionScreen(): React.JSX.Element {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!startFeedback) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setStartFeedback(null);
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [startFeedback]);
 
   useEffect(() => {
     const nextTarget = selectedMinutes * 60;
@@ -396,10 +413,10 @@ export function AddSessionScreen(): React.JSX.Element {
     setRemainingSeconds(resetSeconds);
   };
 
-  const onSave = async (): Promise<void> => {
+  const saveCurrentSession = async (): Promise<{ ok: boolean; sessionId?: string }> => {
     if (hasMlInputError) {
       Alert.alert(t('start.validationNonZeroTitle'), t('start.validationWholeNumberMessage'));
-      return;
+      return { ok: false };
     }
 
     const leftMl = parseMlInputValue(leftMlInput);
@@ -407,7 +424,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
     if (leftMl === 0 && rightMl === 0) {
       Alert.alert(t('start.validationNonZeroTitle'), t('start.validationNonZeroMessage'));
-      return;
+      return { ok: false };
     }
 
     try {
@@ -415,7 +432,7 @@ export function AddSessionScreen(): React.JSX.Element {
       const currentRemainingSeconds = getCurrentRemainingSeconds();
       const durationSeconds = Math.max(targetDurationSeconds - currentRemainingSeconds, 0);
 
-      await addSession({
+      const saved = await addSession({
         leftMl,
         rightMl,
         durationSeconds,
@@ -428,12 +445,56 @@ export function AddSessionScreen(): React.JSX.Element {
       setNote('');
       setTimestamp(new Date());
       triggerHapticSuccess();
-      Alert.alert(t('start.savedTitle'), t('start.savedMessage'));
+      setStartFeedback({
+        messageKey: 'start.savedUndoHint',
+        undoSessionId: saved.id
+      });
+      return { ok: true, sessionId: saved.id };
     } catch (error) {
       Alert.alert(t('common.error'), reportError(error, t('start.saveErrorFallback')));
+      return { ok: false };
     } finally {
       setSaving(false);
     }
+  };
+
+  const onSave = async (): Promise<void> => {
+    await saveCurrentSession();
+  };
+
+  const onUndoSavedSession = async (): Promise<void> => {
+    if (!startFeedback?.undoSessionId || undoingSave) {
+      return;
+    }
+
+    try {
+      setUndoingSave(true);
+      await deleteSession(startFeedback.undoSessionId);
+      setStartFeedback({ messageKey: 'start.undoSaveSuccess' });
+      triggerHapticLight();
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('start.undoSaveError')));
+    } finally {
+      setUndoingSave(false);
+    }
+  };
+
+  const onSaveFromTimerPrompt = async (): Promise<void> => {
+    const result = await saveCurrentSession();
+    if (result.ok) {
+      setShowNextRoundPrompt(false);
+    }
+  };
+
+  const onSaveAndStartNextRound = async (): Promise<void> => {
+    const result = await saveCurrentSession();
+    if (!result.ok) {
+      return;
+    }
+
+    setShowNextRoundPrompt(false);
+    triggerHapticLight();
+    startFreshTimer(nextRoundMinutes);
   };
 
   const onRefreshStartScreen = useCallback(async (): Promise<void> => {
@@ -692,6 +753,26 @@ export function AddSessionScreen(): React.JSX.Element {
 
       </ScrollView>
 
+      {startFeedback ? (
+        <View style={styles.startFeedbackBanner}>
+          <Text style={styles.startFeedbackText}>{t(startFeedback.messageKey)}</Text>
+          {startFeedback.undoSessionId ? (
+            <Pressable
+              onPress={() => {
+                void onUndoSavedSession();
+              }}
+              disabled={undoingSave}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.startFeedbackAction, pressed && styles.timerPressed]}
+            >
+              <Text style={styles.startFeedbackActionText}>
+                {undoingSave ? t('common.working') : t('common.undo')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.stickySaveBar}>
         <Text style={styles.stickySaveHint}>
           {t('start.quickAddLabel')}: {parseMlInputValue(leftMlInput) + parseMlInputValue(rightMlInput)} ml
@@ -757,16 +838,56 @@ export function AddSessionScreen(): React.JSX.Element {
 
             <View style={styles.modalActionsRow}>
               <Pressable
+                onPress={() => {
+                  void onSaveFromTimerPrompt();
+                }}
+                disabled={saving}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.modalSecondaryButton,
+                  saving && styles.modalActionDisabled,
+                  pressed && styles.timerPressed
+                ]}
+              >
+                <Text style={styles.modalSecondaryButtonText}>{t('start.saveSessionOnly')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  void onSaveAndStartNextRound();
+                }}
+                disabled={saving}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.modalPrimaryButton,
+                  saving && styles.modalActionDisabled,
+                  pressed && styles.timerPressed
+                ]}
+              >
+                <Text style={styles.modalPrimaryButtonText}>
+                  {saving ? t('common.working') : t('start.saveAndStartNextTimer')}
+                </Text>
+              </Pressable>
+              <Pressable
                 onPress={() => setShowNextRoundPrompt(false)}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.timerPressed]}
+                style={({ pressed }) => [
+                  styles.modalSecondaryButton,
+                  saving && styles.modalActionDisabled,
+                  pressed && styles.timerPressed
+                ]}
+                disabled={saving}
               >
                 <Text style={styles.modalSecondaryButtonText}>{t('start.nextRoundNotNow')}</Text>
               </Pressable>
               <Pressable
                 onPress={onStartNextRoundTimer}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.modalPrimaryButton, pressed && styles.timerPressed]}
+                disabled={saving}
+                style={({ pressed }) => [
+                  styles.modalPrimaryButton,
+                  saving && styles.modalActionDisabled,
+                  pressed && styles.timerPressed
+                ]}
               >
                 <Text style={styles.modalPrimaryButtonText}>{t('start.nextRoundStartButton')}</Text>
               </Pressable>
@@ -1069,6 +1190,40 @@ function createStyles(colors: AppColors) {
     fontSize: 16,
     fontWeight: '700'
   },
+  startFeedbackBanner: {
+    marginTop: 6,
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10
+  },
+  startFeedbackText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  startFeedbackAction: {
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  startFeedbackActionText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700'
+  },
   stickySaveBar: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -1204,6 +1359,9 @@ function createStyles(colors: AppColors) {
     fontWeight: '700',
     fontSize: 15,
     textAlign: 'center'
+  },
+  modalActionDisabled: {
+    opacity: 0.55
   }
   });
 }

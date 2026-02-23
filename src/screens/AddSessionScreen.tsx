@@ -65,6 +65,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [now, setNow] = useState(Date.now());
   const minuteWheelRef = useRef<ScrollView>(null);
   const minuteWheelMomentumRef = useRef(false);
+  const suppressMinuteWheelEventsRef = useRef(false);
   const nextRoundWheelRef = useRef<ScrollView>(null);
   const nextRoundWheelMomentumRef = useRef(false);
   const nextRoundDefaultMinutes = Math.max(
@@ -150,7 +151,7 @@ export function AddSessionScreen(): React.JSX.Element {
   };
 
   const onMinutesScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    if (timerRunning || !timerMinutesLoaded) {
+    if (timerRunning || !timerMinutesLoaded || suppressMinuteWheelEventsRef.current) {
       return;
     }
 
@@ -281,11 +282,15 @@ export function AddSessionScreen(): React.JSX.Element {
       return;
     }
 
+    suppressMinuteWheelEventsRef.current = true;
     minuteWheelRef.current?.scrollTo({
       x: 0,
       y: minuteIndex * MINUTE_ITEM_HEIGHT,
       animated: false
     });
+    setTimeout(() => {
+      suppressMinuteWheelEventsRef.current = false;
+    }, 0);
   }, [timerMinutesLoaded, wheelMinuteValue]);
 
   const startFreshTimer = (minutes: number): void => {
@@ -421,34 +426,39 @@ export function AddSessionScreen(): React.JSX.Element {
         <Text style={styles.title}>{t('start.title')}</Text>
 
         <Text style={styles.label}>{t('start.duration')}</Text>
-        <View style={[styles.minutePickerGroup, !timerMinutesLoaded && styles.minutePickerHidden]}>
+        <View style={styles.minutePickerGroup}>
           <View style={styles.timeDisplayRow}>
             <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
-              <ScrollView
-                ref={minuteWheelRef}
-                showsVerticalScrollIndicator={false}
-                style={styles.minuteWheel}
-                contentContainerStyle={styles.minuteWheelContent}
-                snapToInterval={MINUTE_ITEM_HEIGHT}
-                decelerationRate="fast"
-                bounces={false}
-              nestedScrollEnabled
-              scrollEnabled={!timerRunning}
-              onScrollBeginDrag={() => {
-                minuteWheelMomentumRef.current = false;
-              }}
-              onMomentumScrollBegin={() => {
-                minuteWheelMomentumRef.current = true;
-              }}
-              onMomentumScrollEnd={onMinutesScrollEnd}
-              onScrollEndDrag={(event) => {
-                if (!minuteWheelMomentumRef.current) {
-                  onMinutesScrollEnd(event);
-                }
-              }}
-            >
-                {minuteWheelItems}
-              </ScrollView>
+              {timerMinutesLoaded ? (
+                <ScrollView
+                  ref={minuteWheelRef}
+                  showsVerticalScrollIndicator={false}
+                  style={styles.minuteWheel}
+                  contentOffset={{ x: 0, y: wheelMinuteValue * MINUTE_ITEM_HEIGHT }}
+                  contentContainerStyle={styles.minuteWheelContent}
+                  snapToInterval={MINUTE_ITEM_HEIGHT}
+                  decelerationRate="fast"
+                  bounces={false}
+                  nestedScrollEnabled
+                  scrollEnabled={!timerRunning}
+                  onScrollBeginDrag={() => {
+                    minuteWheelMomentumRef.current = false;
+                  }}
+                  onMomentumScrollBegin={() => {
+                    minuteWheelMomentumRef.current = true;
+                  }}
+                  onMomentumScrollEnd={onMinutesScrollEnd}
+                  onScrollEndDrag={(event) => {
+                    if (!minuteWheelMomentumRef.current) {
+                      onMinutesScrollEnd(event);
+                    }
+                  }}
+                >
+                  {minuteWheelItems}
+                </ScrollView>
+              ) : (
+                <View style={styles.minuteWheelLoadingPlaceholder} />
+              )}
               <View pointerEvents="none" style={styles.minuteWheelCenterMarker} />
             </View>
             <Text style={styles.timeDivider}>:</Text>
@@ -735,8 +745,8 @@ function createStyles(colors: AppColors) {
     alignSelf: 'center',
     gap: 10
   },
-  minutePickerHidden: {
-    opacity: 0
+  minuteWheelLoadingPlaceholder: {
+    flex: 1
   },
   timeDisplayRow: {
     flexDirection: 'row',

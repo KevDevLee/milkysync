@@ -40,6 +40,7 @@ const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
+const QUICK_ML_INCREMENTS = [10, 20, 30] as const;
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
@@ -64,6 +65,8 @@ export function AddSessionScreen(): React.JSX.Element {
   const [showNextRoundPrompt, setShowNextRoundPrompt] = useState(false);
   const [nextRoundMinutes, setNextRoundMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [now, setNow] = useState(Date.now());
+  const leftMlInputRef = useRef<TextInput>(null);
+  const rightMlInputRef = useRef<TextInput>(null);
   const minuteWheelRef = useRef<ScrollView>(null);
   const minuteWheelMomentumRef = useRef(false);
   const suppressMinuteWheelEventsRef = useRef(false);
@@ -89,6 +92,14 @@ export function AddSessionScreen(): React.JSX.Element {
     setTargetDurationSeconds(nextTarget);
     setRemainingSeconds(nextTarget);
   }, [selectedMinutes]);
+
+  const triggerHapticLight = useCallback(() => {
+    Vibration.vibrate(8);
+  }, []);
+
+  const triggerHapticSuccess = useCallback(() => {
+    Vibration.vibrate([0, 20, 40, 20]);
+  }, []);
 
   useEffect(() => {
     if (!showNextRoundPrompt) {
@@ -235,6 +246,39 @@ export function AddSessionScreen(): React.JSX.Element {
     });
   }, [selectedMinutes, timerMinutesLoaded]);
 
+  const mlInputErrorKey = useCallback((value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    return /^\d+$/.test(trimmed) ? null : 'start.validationWholeNumberMessage';
+  }, []);
+
+  const parseMlInputValue = useCallback((value: string): number => {
+    const trimmed = value.trim();
+    if (!trimmed || !/^\d+$/.test(trimmed)) {
+      return 0;
+    }
+    return clampMl(Number(trimmed));
+  }, []);
+
+  const leftMlErrorKey = mlInputErrorKey(leftMlInput);
+  const rightMlErrorKey = mlInputErrorKey(rightMlInput);
+  const hasMlInputError = Boolean(leftMlErrorKey || rightMlErrorKey);
+
+  const applyQuickMlIncrement = useCallback(
+    (side: 'left' | 'right', delta: number): void => {
+      triggerHapticLight();
+      if (side === 'left') {
+        setLeftMlInput(String(parseMlInputValue(leftMlInput) + delta));
+        return;
+      }
+      setRightMlInput(String(parseMlInputValue(rightMlInput) + delta));
+    },
+    [leftMlInput, parseMlInputValue, rightMlInput, triggerHapticLight]
+  );
+
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
@@ -318,6 +362,7 @@ export function AddSessionScreen(): React.JSX.Element {
     const selectedSeconds = selectedMinutes * 60;
     const nextTargetSeconds =
       remainingSeconds > 0 && remainingSeconds <= selectedSeconds ? remainingSeconds : selectedSeconds;
+    triggerHapticLight();
     setTargetDurationSeconds(nextTargetSeconds);
     setRemainingSeconds(nextTargetSeconds);
     setCountdownStartedAtMs(Date.now());
@@ -326,6 +371,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const onStartNextRoundTimer = (): void => {
     setShowNextRoundPrompt(false);
+    triggerHapticLight();
     startFreshTimer(nextRoundMinutes);
   };
 
@@ -335,6 +381,7 @@ export function AddSessionScreen(): React.JSX.Element {
     }
 
     const currentRemainingSeconds = getCurrentRemainingSeconds();
+    triggerHapticLight();
     setRemainingSeconds(currentRemainingSeconds);
     setTimerRunning(false);
     setCountdownStartedAtMs(null);
@@ -342,6 +389,7 @@ export function AddSessionScreen(): React.JSX.Element {
 
   const onResetTimer = (): void => {
     const resetSeconds = selectedMinutes * 60;
+    triggerHapticLight();
     setTimerRunning(false);
     setCountdownStartedAtMs(null);
     setTargetDurationSeconds(resetSeconds);
@@ -349,8 +397,13 @@ export function AddSessionScreen(): React.JSX.Element {
   };
 
   const onSave = async (): Promise<void> => {
-    const leftMl = clampMl(Number(leftMlInput));
-    const rightMl = clampMl(Number(rightMlInput));
+    if (hasMlInputError) {
+      Alert.alert(t('start.validationNonZeroTitle'), t('start.validationWholeNumberMessage'));
+      return;
+    }
+
+    const leftMl = parseMlInputValue(leftMlInput);
+    const rightMl = parseMlInputValue(rightMlInput);
 
     if (leftMl === 0 && rightMl === 0) {
       Alert.alert(t('start.validationNonZeroTitle'), t('start.validationNonZeroMessage'));
@@ -374,6 +427,7 @@ export function AddSessionScreen(): React.JSX.Element {
       setRightMlInput('0');
       setNote('');
       setTimestamp(new Date());
+      triggerHapticSuccess();
       Alert.alert(t('start.savedTitle'), t('start.savedMessage'));
     } catch (error) {
       Alert.alert(t('common.error'), reportError(error, t('start.saveErrorFallback')));
@@ -398,6 +452,7 @@ export function AddSessionScreen(): React.JSX.Element {
   return (
     <Screen>
       <ScrollView
+        style={styles.scroll}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -409,6 +464,7 @@ export function AddSessionScreen(): React.JSX.Element {
           />
         }
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
         <AppCard style={styles.lastSessionCard}>
           <View style={styles.topStatsRow}>
@@ -503,22 +559,54 @@ export function AddSessionScreen(): React.JSX.Element {
           <View style={styles.fieldHalf}>
             <Text style={styles.label}>{t('start.leftMl')}</Text>
             <TextInput
+              ref={leftMlInputRef}
               value={leftMlInput}
               onChangeText={setLeftMlInput}
               keyboardType="numeric"
-              style={styles.input}
+              style={[styles.input, leftMlErrorKey ? styles.inputError : null]}
               accessibilityLabel={t('start.leftAmountA11y')}
+              returnKeyType="next"
+              onSubmitEditing={() => rightMlInputRef.current?.focus()}
             />
+            {leftMlErrorKey ? <Text style={styles.fieldErrorText}>{t(leftMlErrorKey)}</Text> : null}
+            <View style={styles.quickMlRow}>
+              {QUICK_ML_INCREMENTS.map((increment) => (
+                <Pressable
+                  key={`left-${increment}`}
+                  onPress={() => applyQuickMlIncrement('left', increment)}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.quickMlButton, pressed && styles.timerPressed]}
+                >
+                  <Text style={styles.quickMlButtonText}>+{increment}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
           <View style={styles.fieldHalf}>
             <Text style={styles.label}>{t('start.rightMl')}</Text>
             <TextInput
+              ref={rightMlInputRef}
               value={rightMlInput}
               onChangeText={setRightMlInput}
               keyboardType="numeric"
-              style={styles.input}
+              style={[styles.input, rightMlErrorKey ? styles.inputError : null]}
               accessibilityLabel={t('start.rightAmountA11y')}
+              returnKeyType="done"
+              onSubmitEditing={() => rightMlInputRef.current?.blur()}
             />
+            {rightMlErrorKey ? <Text style={styles.fieldErrorText}>{t(rightMlErrorKey)}</Text> : null}
+            <View style={styles.quickMlRow}>
+              {QUICK_ML_INCREMENTS.map((increment) => (
+                <Pressable
+                  key={`right-${increment}`}
+                  onPress={() => applyQuickMlIncrement('right', increment)}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.quickMlButton, pressed && styles.timerPressed]}
+                >
+                  <Text style={styles.quickMlButtonText}>+{increment}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -602,15 +690,25 @@ export function AddSessionScreen(): React.JSX.Element {
           ) : null}
         </View>
 
+      </ScrollView>
+
+      <View style={styles.stickySaveBar}>
+        <Text style={styles.stickySaveHint}>
+          {t('start.quickAddLabel')}: {parseMlInputValue(leftMlInput) + parseMlInputValue(rightMlInput)} ml
+        </Text>
         <Pressable
           onPress={onSave}
           disabled={saving}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
-      >
-        <Text style={styles.saveText}>{saving ? t('start.saving') : t('start.saveSession')}</Text>
-      </Pressable>
-      </ScrollView>
+          style={({ pressed }) => [
+            styles.saveButton,
+            styles.stickySaveButton,
+            pressed && styles.saveButtonPressed
+          ]}
+        >
+          <Text style={styles.saveText}>{saving ? t('start.saving') : t('start.saveSession')}</Text>
+        </Pressable>
+      </View>
 
       <Modal
         visible={showNextRoundPrompt}
@@ -682,8 +780,11 @@ export function AddSessionScreen(): React.JSX.Element {
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
+  scroll: {
+    flex: 1
+  },
   content: {
-    paddingBottom: 24,
+    paddingBottom: 16,
     gap: 10
   },
   title: {
@@ -739,6 +840,34 @@ function createStyles(colors: AppColors) {
   fieldHalf: {
     flex: 1,
     gap: 6
+  },
+  inputError: {
+    borderColor: colors.danger
+  },
+  fieldErrorText: {
+    color: colors.danger,
+    fontSize: 12,
+    marginTop: -2
+  },
+  quickMlRow: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  quickMlButton: {
+    minHeight: 32,
+    minWidth: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10
+  },
+  quickMlButtonText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700'
   },
   label: {
     fontSize: 14,
@@ -939,6 +1068,22 @@ function createStyles(colors: AppColors) {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700'
+  },
+  stickySaveBar: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
+    paddingTop: 10,
+    paddingBottom: 10,
+    gap: 8
+  },
+  stickySaveHint: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center'
+  },
+  stickySaveButton: {
+    marginTop: 0
   },
   modalBackdrop: {
     flex: 1,

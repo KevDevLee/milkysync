@@ -150,7 +150,7 @@ export function AddSessionScreen(): React.JSX.Element {
   };
 
   const onMinutesScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    if (timerRunning) {
+    if (timerRunning || !timerMinutesLoaded) {
       return;
     }
 
@@ -165,7 +165,7 @@ export function AddSessionScreen(): React.JSX.Element {
         animated: false
       });
     }
-  }, [selectedMinutes, timerRunning]);
+  }, [selectedMinutes, timerMinutesLoaded, timerRunning]);
 
   const onNextRoundMinutesScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
@@ -213,11 +213,6 @@ export function AddSessionScreen(): React.JSX.Element {
       setTargetDurationSeconds(initialSeconds);
       setRemainingSeconds(initialSeconds);
       setSelectedMinutes(minutes);
-      minuteWheelRef.current?.scrollTo({
-        x: 0,
-        y: SESSION_MINUTE_OPTIONS.indexOf(minutes) * MINUTE_ITEM_HEIGHT,
-        animated: false
-      });
       setTimerMinutesLoaded(true);
     };
 

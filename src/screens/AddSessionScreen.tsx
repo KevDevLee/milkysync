@@ -42,7 +42,7 @@ const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession, sessions, reminderSettings, refresh } = useAppData();
+  const { addSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -410,17 +410,29 @@ export function AddSessionScreen(): React.JSX.Element {
         contentContainerStyle={styles.content}
       >
         <AppCard style={styles.lastSessionCard}>
-          <Text style={styles.lastSessionLabel}>{t('start.lastSession')}</Text>
-          {lastSession ? (
-            <>
-              <Text style={styles.lastSessionValue}>
-                {formatRelativeDuration(lastSession.timestamp, now)}
-              </Text>
-              <Text style={styles.lastSessionMeta}>{formatDateTime(lastSession.timestamp)}</Text>
-            </>
-          ) : (
-            <Text style={styles.lastSessionMeta}>{t('start.noSessionYet')}</Text>
-          )}
+          <View style={styles.topStatsRow}>
+            <View style={styles.topStatColumn}>
+              <Text style={styles.lastSessionLabel}>{t('start.lastSession')}</Text>
+              {lastSession ? (
+                <>
+                  <Text style={styles.lastSessionValue}>
+                    {formatRelativeDuration(lastSession.timestamp, now)}
+                  </Text>
+                  <Text style={styles.lastSessionMeta}>{formatDateTime(lastSession.timestamp)}</Text>
+                </>
+              ) : (
+                <Text style={styles.lastSessionMeta}>{t('start.noSessionYet')}</Text>
+              )}
+            </View>
+
+            <View style={styles.topStatsDivider} />
+
+            <View style={styles.topStatColumn}>
+              <Text style={styles.lastSessionLabel}>{t('start.todayTotal')}</Text>
+              <Text style={styles.lastSessionValue}>{dailyTotalMl} ml</Text>
+              <Text style={styles.lastSessionMeta}>{t('overview.today')}</Text>
+            </View>
+          </View>
         </AppCard>
 
         <Text style={styles.title}>{t('start.title')}</Text>
@@ -665,6 +677,20 @@ function createStyles(colors: AppColors) {
   lastSessionCard: {
     marginBottom: 4,
     gap: 3
+  },
+  topStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12
+  },
+  topStatColumn: {
+    flex: 1,
+    gap: 3
+  },
+  topStatsDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    opacity: 0.9
   },
   lastSessionLabel: {
     fontSize: 13,

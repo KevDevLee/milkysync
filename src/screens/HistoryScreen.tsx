@@ -212,7 +212,7 @@ function buildYAxisTicks(axisMax: number): number[] {
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, dailyTotalMl, loading, refresh, updateSession } = useAppData();
+  const { sessions, loading, refresh, updateSession } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -248,6 +248,30 @@ export function HistoryScreen(): React.JSX.Element {
       return true;
     });
   }, [rangeBounds.endExclusive, rangeBounds.start, sessions]);
+
+  const rangeTotalMl = useMemo(
+    () => filteredSessions.reduce((sum, session) => sum + session.totalMl, 0),
+    [filteredSessions]
+  );
+
+  const rangeTotalLabelKey = useMemo(() => {
+    if (selectedRange === 'day') {
+      if (periodOffset === 0) {
+        return 'history.totalLabel.today';
+      }
+      if (periodOffset === -1) {
+        return 'history.totalLabel.yesterday';
+      }
+      return 'history.totalLabel.day';
+    }
+    if (selectedRange === 'week') {
+      return 'history.totalLabel.week';
+    }
+    if (selectedRange === 'month') {
+      return 'history.totalLabel.month';
+    }
+    return 'history.totalLabel.all';
+  }, [periodOffset, selectedRange]);
 
   const listSessions = useMemo(
     () =>
@@ -525,8 +549,8 @@ export function HistoryScreen(): React.JSX.Element {
         ListHeaderComponent={
           <>
             <AppCard style={styles.headerCard}>
-              <Text style={styles.headerLabel}>{t('history.todayTotal')}</Text>
-              <Text style={styles.headerValue}>{dailyTotalMl} ml</Text>
+              <Text style={styles.headerLabel}>{t(rangeTotalLabelKey)}</Text>
+              <Text style={styles.headerValue}>{rangeTotalMl} ml</Text>
             </AppCard>
 
             <AppCard style={styles.chartCard}>

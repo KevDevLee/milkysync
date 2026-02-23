@@ -209,6 +209,9 @@ export function AddSessionScreen(): React.JSX.Element {
         return;
       }
 
+      const initialSeconds = minutes * 60;
+      setTargetDurationSeconds(initialSeconds);
+      setRemainingSeconds(initialSeconds);
       setSelectedMinutes(minutes);
       minuteWheelRef.current?.scrollTo({
         x: 0,
@@ -238,7 +241,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
-  const hasPartialCountdown = remainingSeconds !== selectedMinutes * 60;
+  const hasPartialCountdown = remainingSeconds !== targetDurationSeconds;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
   const minuteWheelItems = useMemo(
     () =>
@@ -423,7 +426,7 @@ export function AddSessionScreen(): React.JSX.Element {
         <Text style={styles.title}>{t('start.title')}</Text>
 
         <Text style={styles.label}>{t('start.duration')}</Text>
-        <View style={styles.minutePickerGroup}>
+        <View style={[styles.minutePickerGroup, !timerMinutesLoaded && styles.minutePickerHidden]}>
           <View style={styles.timeDisplayRow}>
             <View style={[styles.minuteWheelContainer, timerRunning && styles.minuteWheelDisabled]}>
               <ScrollView
@@ -736,6 +739,9 @@ function createStyles(colors: AppColors) {
     alignItems: 'center',
     alignSelf: 'center',
     gap: 10
+  },
+  minutePickerHidden: {
+    opacity: 0
   },
   timeDisplayRow: {
     flexDirection: 'row',

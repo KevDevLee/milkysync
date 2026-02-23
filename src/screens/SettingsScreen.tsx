@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -12,6 +13,7 @@ import {
   Text,
   View
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
@@ -61,6 +63,9 @@ export function SettingsScreen(): React.JSX.Element {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState('');
   const [pairingBusy, setPairingBusy] = useState(false);
+  const [notificationPermissionGranted, setNotificationPermissionGranted] = useState<boolean | null>(null);
+  const [notificationPermissionCanAskAgain, setNotificationPermissionCanAskAgain] = useState(true);
+  const [notificationPermissionBusy, setNotificationPermissionBusy] = useState(false);
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
@@ -76,6 +81,22 @@ export function SettingsScreen(): React.JSX.Element {
     setEnabled(reminderSettings.enabled);
     setDraftReminderMinutes(reminderSettings.intervalMinutes);
   }, [reminderSettings.enabled, reminderSettings.intervalMinutes]);
+
+  const refreshNotificationPermissionStatus = useCallback(async (): Promise<void> => {
+    try {
+      const permissions = await Notifications.getPermissionsAsync();
+      setNotificationPermissionGranted(permissions.granted);
+      setNotificationPermissionCanAskAgain(permissions.canAskAgain);
+    } catch (error) {
+      console.warn('Failed to read notification permissions.', error);
+      setNotificationPermissionGranted(null);
+      setNotificationPermissionCanAskAgain(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshNotificationPermissionStatus();
+  }, [refreshNotificationPermissionStatus]);
 
   useEffect(() => {
     if (!showReminderWheel) {
@@ -254,6 +275,35 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  const onRequestNotificationPermission = async (): Promise<void> => {
+    try {
+      setNotificationPermissionBusy(true);
+      const result = await Notifications.requestPermissionsAsync();
+      setNotificationPermissionGranted(result.granted);
+      setNotificationPermissionCanAskAgain(result.canAskAgain);
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('settings.notificationPermissionError')));
+    } finally {
+      setNotificationPermissionBusy(false);
+    }
+  };
+
+  const onOpenSystemSettings = async (): Promise<void> => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('settings.notificationOpenSettingsError')));
+    }
+  };
+
+  const roleLabel = t(`auth.role.${profile.role}`);
+  const notificationPermissionStatusKey =
+    notificationPermissionGranted === true
+      ? 'settings.notificationPermission.statusGranted'
+      : notificationPermissionGranted === false
+        ? 'settings.notificationPermission.statusDenied'
+        : 'settings.notificationPermission.statusUnknown';
+
   if (loading || preferencesLoading) {
     return (
       <Screen>
@@ -281,7 +331,7 @@ export function SettingsScreen(): React.JSX.Element {
           <Text style={styles.label}>{t('settings.loggedInAs')}</Text>
           <Text style={styles.helper}>{profile.email}</Text>
           <Text style={styles.helper}>
-            {t('settings.role')}: {profile.role}
+            {t('settings.role')}: {roleLabel}
           </Text>
         </AppCard>
 
@@ -352,6 +402,48 @@ export function SettingsScreen(): React.JSX.Element {
         </AppCard>
 
         <AppCard style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('settings.notificationsTitle')}</Text>
+
+          <View style={styles.permissionBox}>
+            <Text style={styles.fieldLabel}>{t('settings.notificationPermissionTitle')}</Text>
+            <Text style={styles.reminderPickerValue}>{t(notificationPermissionStatusKey)}</Text>
+            <Text style={styles.helper}>
+              {notificationPermissionGranted
+                ? t('settings.notificationPermissionGrantedHint')
+                : notificationPermissionCanAskAgain
+                  ? t('settings.notificationPermissionRequestHint')
+                  : t('settings.notificationPermissionOpenSettingsHint')}
+            </Text>
+
+            <View style={styles.permissionActionsRow}>
+              {notificationPermissionCanAskAgain && notificationPermissionGranted !== true ? (
+                <AppButton
+                  label={
+                    notificationPermissionBusy
+                      ? t('common.working')
+                      : t('settings.notificationPermissionRequestButton')
+                  }
+                  onPress={() => void onRequestNotificationPermission()}
+                  disabled={notificationPermissionBusy}
+                  variant="secondary"
+                  style={styles.permissionActionButton}
+                />
+              ) : null}
+              <AppButton
+                label={t('settings.notificationOpenSettingsButton')}
+                onPress={() => void onOpenSystemSettings()}
+                variant="secondary"
+                style={styles.permissionActionButton}
+              />
+              <AppButton
+                label={t('settings.notificationPermissionRefreshButton')}
+                onPress={() => void refreshNotificationPermissionStatus()}
+                variant="secondary"
+                style={styles.permissionActionButton}
+              />
+            </View>
+          </View>
+
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>{t('settings.reminderEveryMinutes')}</Text>
             <Pressable
@@ -577,6 +669,22 @@ function createStyles(colors: AppColors) {
       paddingHorizontal: 12,
       justifyContent: 'center',
       gap: 2
+    },
+    permissionBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 6
+    },
+    permissionActionsRow: {
+      gap: 8,
+      marginTop: 2
+    },
+    permissionActionButton: {
+      width: '100%'
     },
     reminderPickerFieldPressed: {
       opacity: 0.86

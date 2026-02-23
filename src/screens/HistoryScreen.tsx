@@ -212,7 +212,7 @@ function buildYAxisTicks(axisMax: number): number[] {
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, loading, refresh, updateSession } = useAppData();
+  const { sessions, loading, refresh, updateSession, deleteSession } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -227,6 +227,7 @@ export function HistoryScreen(): React.JSX.Element {
   const [editRightMlInput, setEditRightMlInput] = useState('0');
   const [editTimestamp, setEditTimestamp] = useState<Date>(new Date());
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingEdit, setDeletingEdit] = useState(false);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -441,7 +442,7 @@ export function HistoryScreen(): React.JSX.Element {
   };
 
   const closeEditModal = (): void => {
-    if (savingEdit) {
+    if (savingEdit || deletingEdit) {
       return;
     }
     setEditingSessionId(null);
@@ -449,6 +450,13 @@ export function HistoryScreen(): React.JSX.Element {
 
   const onSaveEdit = async (): Promise<void> => {
     if (!editingSession) {
+      return;
+    }
+
+    const leftValid = /^\d+$/.test(editLeftMlInput.trim());
+    const rightValid = /^\d+$/.test(editRightMlInput.trim());
+    if (!leftValid || !rightValid) {
+      Alert.alert(t('common.error'), t('history.edit.validationWholeNumber'));
       return;
     }
 
@@ -474,6 +482,34 @@ export function HistoryScreen(): React.JSX.Element {
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  const onDeleteEdit = (): void => {
+    if (!editingSession || savingEdit || deletingEdit) {
+      return;
+    }
+
+    Alert.alert(t('history.edit.deleteConfirmTitle'), t('history.edit.deleteConfirmMessage'), [
+      { text: t('settings.cancel'), style: 'cancel' },
+      {
+        text: t('history.edit.delete'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              setDeletingEdit(true);
+              await deleteSession(editingSession.id);
+              setEditingSessionId(null);
+              Alert.alert(t('common.saved'), t('history.edit.deleteSuccess'));
+            } catch (error) {
+              Alert.alert(t('common.error'), reportError(error, t('history.edit.deleteError')));
+            } finally {
+              setDeletingEdit(false);
+            }
+          })();
+        }
+      }
+    ]);
   };
 
   const updateEditDatePart = (nextDate: Date): void => {
@@ -738,6 +774,12 @@ export function HistoryScreen(): React.JSX.Element {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('history.edit.title')}</Text>
+            {editingSession ? (
+              <View style={styles.modalSessionSummary}>
+                <Text style={styles.modalSessionSummaryValue}>{editingSession.totalMl} ml</Text>
+                <Text style={styles.modalSessionSummaryMeta}>{formatDateTime(editingSession.timestamp)}</Text>
+              </View>
+            ) : null}
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}>
               <View style={styles.row}>
                 <View style={styles.fieldHalf}>
@@ -816,10 +858,28 @@ export function HistoryScreen(): React.JSX.Element {
 
             <View style={styles.modalActions}>
               <Pressable
-                onPress={closeEditModal}
-                disabled={savingEdit}
+                onPress={onDeleteEdit}
+                disabled={savingEdit || deletingEdit}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.chipPressed]}
+                style={({ pressed }) => [
+                  styles.modalDangerButton,
+                  (savingEdit || deletingEdit) && styles.modalButtonDisabled,
+                  pressed && styles.chipPressed
+                ]}
+              >
+                <Text style={styles.modalDangerButtonText}>
+                  {deletingEdit ? t('common.working') : t('history.edit.delete')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={closeEditModal}
+                disabled={savingEdit || deletingEdit}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.modalSecondaryButton,
+                  (savingEdit || deletingEdit) && styles.modalButtonDisabled,
+                  pressed && styles.chipPressed
+                ]}
               >
                 <Text style={styles.modalSecondaryButtonText}>{t('settings.cancel')}</Text>
               </Pressable>
@@ -827,9 +887,13 @@ export function HistoryScreen(): React.JSX.Element {
                 onPress={() => {
                   void onSaveEdit();
                 }}
-                disabled={savingEdit}
+                disabled={savingEdit || deletingEdit}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.modalPrimaryButton, pressed && styles.chipPressed]}
+                style={({ pressed }) => [
+                  styles.modalPrimaryButton,
+                  (savingEdit || deletingEdit) && styles.modalButtonDisabled,
+                  pressed && styles.chipPressed
+                ]}
               >
                 <Text style={styles.modalPrimaryButtonText}>
                   {savingEdit ? t('common.working') : t('history.edit.save')}
@@ -1074,6 +1138,24 @@ function createStyles(colors: AppColors) {
     fontSize: 18,
     fontWeight: '700'
   },
+  modalSessionSummary: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 2
+  },
+  modalSessionSummaryValue: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700'
+  },
+  modalSessionSummaryMeta: {
+    color: colors.textSecondary,
+    fontSize: 13
+  },
   modalContent: {
     gap: 10
   },
@@ -1121,6 +1203,20 @@ function createStyles(colors: AppColors) {
     fontSize: 15,
     fontWeight: '700'
   },
+  modalDangerButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface
+  },
+  modalDangerButtonText: {
+    color: colors.danger,
+    fontSize: 15,
+    fontWeight: '700'
+  },
   modalPrimaryButton: {
     minHeight: 50,
     borderRadius: 12,
@@ -1132,6 +1228,9 @@ function createStyles(colors: AppColors) {
     color: '#fff',
     fontSize: 15,
     fontWeight: '700'
+  },
+  modalButtonDisabled: {
+    opacity: 0.55
   }
   });
 }

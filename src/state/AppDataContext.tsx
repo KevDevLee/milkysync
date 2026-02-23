@@ -39,6 +39,7 @@ type AppDataContextValue = {
   syncNow: () => Promise<void>;
   addSession: (input: AddSessionInput) => Promise<PumpSession>;
   updateSession: (input: UpdateSessionInput) => Promise<PumpSession>;
+  deleteSession: (sessionId: string) => Promise<void>;
   saveReminderSettings: (input: { intervalMinutes: number; enabled: boolean }) => Promise<void>;
 };
 
@@ -237,6 +238,22 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
     [profile.familyId, profile.id, scheduleNextReminder, syncNow]
   );
 
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      const familyId = profile.familyId;
+      if (!familyId) {
+        throw new Error('No family linked to this profile yet.');
+      }
+
+      await pumpSessionRepository.softDelete(sessionId);
+      await refresh();
+      const lastSession = await pumpSessionRepository.getLastByFamily(familyId);
+      await scheduleNextReminder(lastSession?.timestamp ?? null, reminderSettings);
+      void syncNow();
+    },
+    [profile.familyId, refresh, reminderSettings, scheduleNextReminder, syncNow]
+  );
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       profile,
@@ -248,6 +265,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       syncNow,
       addSession,
       updateSession,
+      deleteSession,
       saveReminderSettings
     }),
     [
@@ -260,6 +278,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       saveReminderSettings,
       sessions,
       syncNow,
+      deleteSession,
       updateSession
     ]
   );

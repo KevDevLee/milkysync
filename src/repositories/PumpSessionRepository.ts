@@ -193,6 +193,33 @@ export class PumpSessionRepository {
     return row ? mapRow(row) : null;
   }
 
+  async softDelete(id: string): Promise<void> {
+    const db = await getDatabase();
+    const existing = await db.getFirstAsync<PumpSessionRow>(
+      'SELECT id, deleted_at FROM pump_sessions WHERE id = ? LIMIT 1',
+      id
+    );
+
+    if (!existing || existing.deleted_at !== null) {
+      throw new Error('Pump session not found.');
+    }
+
+    const now = Date.now();
+    await db.runAsync(
+      `
+      UPDATE pump_sessions
+      SET
+        updated_at = ?,
+        deleted_at = ?,
+        dirty = 1
+      WHERE id = ?
+      `,
+      now,
+      now,
+      id
+    );
+  }
+
   async getDailyTotal(familyId: string, dayStart: number, dayEnd: number): Promise<number> {
     const db = await getDatabase();
     const row = await db.getFirstAsync<{ total: number | null }>(

@@ -23,7 +23,9 @@ import { familyService } from '@/services/family/FamilyService';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors } from '@/theme/colors';
+import { formatDateTime, formatRelativeDuration } from '@/utils/date';
 import { reportError } from '@/utils/error';
+import { computeNextReminderTimestamp } from '@/utils/reminder';
 
 const REMINDER_MIN_INTERVAL = 30;
 const REMINDER_MAX_INTERVAL = 360;
@@ -36,7 +38,7 @@ const WHEEL_VISIBLE_ROWS = 3;
 const WHEEL_HEIGHT = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS;
 
 export function SettingsScreen(): React.JSX.Element {
-  const { reminderSettings, saveReminderSettings, profile, syncNow, loading } = useAppData();
+  const { reminderSettings, saveReminderSettings, profile, syncNow, loading, sessions, syncStatus } = useAppData();
   const { signOut, refreshProfile, sessionUserId } = useAuth();
   const { preferences, loading: preferencesLoading, setThemeMode, setLanguage } = useAppPreferences();
   const [intervalInput, setIntervalInput] = useState(String(reminderSettings.intervalMinutes));
@@ -51,6 +53,10 @@ export function SettingsScreen(): React.JSX.Element {
   const { t } = useI18n();
   const reminderWheelRef = useRef<ScrollView>(null);
   const reminderWheelMomentumRef = useRef(false);
+  const reminderIntervalPreview = Math.max(
+    REMINDER_MIN_INTERVAL,
+    Math.min(REMINDER_MAX_INTERVAL, Math.round(Number(intervalInput)) || reminderSettings.intervalMinutes)
+  );
 
   useEffect(() => {
     setIntervalInput(String(reminderSettings.intervalMinutes));
@@ -105,6 +111,20 @@ export function SettingsScreen(): React.JSX.Element {
     setIntervalInput(String(draftReminderMinutes));
     setShowReminderWheel(false);
   };
+
+  const lastSession = sessions[0] ?? null;
+  const nextReminderTimestamp = enabled
+    ? computeNextReminderTimestamp(lastSession?.timestamp ?? null, reminderIntervalPreview)
+    : null;
+
+  const syncStatusLabelKey =
+    syncStatus.state === 'syncing'
+      ? 'settings.syncStatus.syncing'
+      : syncStatus.state === 'synced'
+        ? 'settings.syncStatus.synced'
+        : syncStatus.state === 'error'
+          ? 'settings.syncStatus.error'
+          : 'settings.syncStatus.idle';
 
   const onSave = async (): Promise<void> => {
     const intervalMinutes = Math.max(30, Math.min(360, Math.round(Number(intervalInput)) || 120));
@@ -170,8 +190,12 @@ export function SettingsScreen(): React.JSX.Element {
 
   const onSyncNow = async (): Promise<void> => {
     try {
-      await syncNow();
-      Alert.alert(t('settings.syncSuccessTitle'), t('settings.syncSuccessMessage'));
+      const ok = await syncNow();
+      if (ok) {
+        Alert.alert(t('settings.syncSuccessTitle'), t('settings.syncSuccessMessage'));
+      } else {
+        Alert.alert(t('common.error'), t('settings.syncError'));
+      }
     } catch (error) {
       Alert.alert(t('common.error'), reportError(error, t('settings.syncError')));
     }
@@ -249,6 +273,30 @@ export function SettingsScreen(): React.JSX.Element {
         </AppCard>
 
         <AppCard style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('settings.syncStatusTitle')}</Text>
+          <View style={styles.syncStatusRow}>
+            <View
+              style={[
+                styles.syncStatusDot,
+                syncStatus.state === 'synced' && styles.syncStatusDotSuccess,
+                syncStatus.state === 'syncing' && styles.syncStatusDotWorking,
+                syncStatus.state === 'error' && styles.syncStatusDotError
+              ]}
+            />
+            <Text style={styles.label}>{t(syncStatusLabelKey)}</Text>
+          </View>
+          {syncStatus.lastSyncedAt ? (
+            <Text style={styles.helper}>
+              {t('settings.lastSyncedAt')}: {formatRelativeDuration(syncStatus.lastSyncedAt, Date.now())} (
+              {formatDateTime(syncStatus.lastSyncedAt)})
+            </Text>
+          ) : null}
+          {syncStatus.errorMessage ? <Text style={styles.errorText}>{syncStatus.errorMessage}</Text> : null}
+
+          <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
+        </AppCard>
+
+        <AppCard style={styles.card}>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>{t('settings.reminderEveryMinutes')}</Text>
             <Pressable
@@ -274,6 +322,16 @@ export function SettingsScreen(): React.JSX.Element {
               thumbColor={colors.surface}
             />
           </View>
+
+          {enabled && nextReminderTimestamp ? (
+            <View style={styles.reminderPreviewBox}>
+              <Text style={styles.reminderPreviewLabel}>{t('settings.nextReminderPreview')}</Text>
+              <Text style={styles.reminderPreviewValue}>{formatDateTime(nextReminderTimestamp)}</Text>
+              <Text style={styles.helper}>{formatRelativeDuration(nextReminderTimestamp, Date.now())}</Text>
+            </View>
+          ) : (
+            <Text style={styles.helper}>{t('settings.reminderDisabledPreview')}</Text>
+          )}
 
           <Text style={styles.helper}>{t('settings.unitsFixed')}</Text>
           <AppButton label={t('settings.saveSettings')} onPress={() => void onSave()} />
@@ -313,7 +371,6 @@ export function SettingsScreen(): React.JSX.Element {
           />
         </AppCard>
 
-        <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
         <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
       </ScrollView>
 
@@ -432,6 +489,30 @@ function createStyles(colors: AppColors) {
       color: colors.textSecondary,
       fontSize: 14
     },
+    errorText: {
+      color: colors.danger,
+      fontSize: 13
+    },
+    syncStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8
+    },
+    syncStatusDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.textSecondary
+    },
+    syncStatusDotSuccess: {
+      backgroundColor: colors.primary
+    },
+    syncStatusDotWorking: {
+      backgroundColor: colors.accent
+    },
+    syncStatusDotError: {
+      backgroundColor: colors.danger
+    },
     reminderPickerField: {
       minHeight: 54,
       borderRadius: 12,
@@ -453,6 +534,25 @@ function createStyles(colors: AppColors) {
     reminderPickerHint: {
       color: colors.textSecondary,
       fontSize: 13
+    },
+    reminderPreviewBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 2
+    },
+    reminderPreviewLabel: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600'
+    },
+    reminderPreviewValue: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700'
     },
     modalBackdrop: {
       flex: 1,

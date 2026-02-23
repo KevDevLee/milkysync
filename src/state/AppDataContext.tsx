@@ -1,4 +1,13 @@
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 
 import { appMetaRepository } from '@/repositories/AppMetaRepository';
@@ -29,14 +38,21 @@ export type UpdateSessionInput = {
   note?: string;
 };
 
+export type SyncStatus = {
+  state: 'idle' | 'syncing' | 'synced' | 'error';
+  lastSyncedAt: number | null;
+  errorMessage: string | null;
+};
+
 type AppDataContextValue = {
   profile: UserProfile;
   sessions: PumpSession[];
   dailyTotalMl: number;
   reminderSettings: ReminderSettings;
+  syncStatus: SyncStatus;
   loading: boolean;
   refresh: () => Promise<void>;
-  syncNow: () => Promise<void>;
+  syncNow: () => Promise<boolean>;
   addSession: (input: AddSessionInput) => Promise<PumpSession>;
   updateSession: (input: UpdateSessionInput) => Promise<PumpSession>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -64,6 +80,12 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
     updatedAt: Date.now()
   });
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    state: 'idle',
+    lastSyncedAt: null,
+    errorMessage: null
+  });
+  const syncInFlightRef = useRef<Promise<boolean> | null>(null);
 
   const refresh = useCallback(async () => {
     const familyId = profile.familyId;
@@ -87,13 +109,42 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
     setReminderSettings(nextSettings);
   }, [profile.familyId, profile.id]);
 
-  const syncNow = useCallback(async () => {
-    try {
-      await syncService.sync(profile);
-      await refresh();
-    } catch (error) {
-      console.error('Sync failed', error);
+  const syncNow = useCallback(async (): Promise<boolean> => {
+    if (syncInFlightRef.current) {
+      return syncInFlightRef.current;
     }
+
+    const syncPromise = (async (): Promise<boolean> => {
+      try {
+        setSyncStatus((previous) => ({
+          ...previous,
+          state: 'syncing',
+          errorMessage: null
+        }));
+        await syncService.sync(profile);
+        await refresh();
+        setSyncStatus({
+          state: 'synced',
+          lastSyncedAt: Date.now(),
+          errorMessage: null
+        });
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Sync failed';
+        setSyncStatus((previous) => ({
+          state: 'error',
+          lastSyncedAt: previous.lastSyncedAt,
+          errorMessage: message
+        }));
+        console.error('Sync failed', error);
+        return false;
+      } finally {
+        syncInFlightRef.current = null;
+      }
+    })();
+
+    syncInFlightRef.current = syncPromise;
+    return syncPromise;
   }, [profile, refresh]);
 
   const scheduleNextReminder = useCallback(
@@ -260,6 +311,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       sessions,
       dailyTotalMl,
       reminderSettings,
+      syncStatus,
       loading,
       refresh,
       syncNow,
@@ -275,6 +327,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
       profile,
       refresh,
       reminderSettings,
+      syncStatus,
       saveReminderSettings,
       sessions,
       syncNow,

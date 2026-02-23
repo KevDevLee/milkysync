@@ -40,6 +40,7 @@ const MINUTE_WHEEL_VISIBLE_ROWS = 2;
 const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
+const START_SESSION_DRAFT_STORAGE_KEY = '@milkysync:start_session_draft';
 const QUICK_ML_INCREMENTS = [10, 20, 30] as const;
 
 export function AddSessionScreen(): React.JSX.Element {
@@ -54,6 +55,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [noteExpanded, setNoteExpanded] = useState(false);
   const [timestamp, setTimestamp] = useState(new Date());
   const [saving, setSaving] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const [selectedMinutes, setSelectedMinutes] = useState(DEFAULT_TIMER_MINUTES);
   const [targetDurationSeconds, setTargetDurationSeconds] = useState(DEFAULT_TIMER_MINUTES * 60);
@@ -89,6 +91,66 @@ export function AddSessionScreen(): React.JSX.Element {
 
     return () => {
       clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadDraft = async (): Promise<void> => {
+      try {
+        const raw = await AsyncStorage.getItem(START_SESSION_DRAFT_STORAGE_KEY);
+        if (!raw) {
+          if (active) {
+            setDraftLoaded(true);
+          }
+          return;
+        }
+
+        const parsed = JSON.parse(raw) as {
+          leftMlInput?: string;
+          rightMlInput?: string;
+          note?: string;
+          timestamp?: number;
+        };
+
+        if (!active) {
+          return;
+        }
+
+        const left = typeof parsed.leftMlInput === 'string' ? parsed.leftMlInput : '0';
+        const right = typeof parsed.rightMlInput === 'string' ? parsed.rightMlInput : '0';
+        const nextNote = typeof parsed.note === 'string' ? parsed.note : '';
+        const nextTimestamp =
+          typeof parsed.timestamp === 'number' && Number.isFinite(parsed.timestamp)
+            ? new Date(parsed.timestamp)
+            : new Date();
+
+        const hasMeaningfulDraft =
+          (Number.parseInt(left, 10) || 0) > 0 ||
+          (Number.parseInt(right, 10) || 0) > 0 ||
+          nextNote.trim().length > 0;
+
+        if (hasMeaningfulDraft) {
+          setLeftMlInput(left);
+          setRightMlInput(right);
+          setNote(nextNote);
+          setTimestamp(nextTimestamp);
+          setStartFeedback({ messageKey: 'start.draftRestoredHint' });
+        }
+      } catch (error) {
+        console.warn('Failed to load start session draft.', error);
+      } finally {
+        if (active) {
+          setDraftLoaded(true);
+        }
+      }
+    };
+
+    void loadDraft();
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -262,6 +324,38 @@ export function AddSessionScreen(): React.JSX.Element {
       console.warn('Failed to save last timer minutes.', error);
     });
   }, [selectedMinutes, timerMinutesLoaded]);
+
+  useEffect(() => {
+    if (!draftLoaded) {
+      return;
+    }
+
+    const leftParsed = /^\d+$/.test(leftMlInput.trim()) ? clampMl(Number(leftMlInput.trim())) : 0;
+    const rightParsed = /^\d+$/.test(rightMlInput.trim()) ? clampMl(Number(rightMlInput.trim())) : 0;
+    const hasMeaningfulDraft =
+      leftParsed > 0 || rightParsed > 0 || note.trim().length > 0;
+
+    const timer = setTimeout(() => {
+      if (!hasMeaningfulDraft) {
+        void AsyncStorage.removeItem(START_SESSION_DRAFT_STORAGE_KEY).catch((error) => {
+          console.warn('Failed to clear start session draft.', error);
+        });
+        return;
+      }
+
+      const payload = JSON.stringify({
+        leftMlInput,
+        rightMlInput,
+        note,
+        timestamp: timestamp.getTime()
+      });
+      void AsyncStorage.setItem(START_SESSION_DRAFT_STORAGE_KEY, payload).catch((error) => {
+        console.warn('Failed to save start session draft.', error);
+      });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [draftLoaded, leftMlInput, note, rightMlInput, timestamp]);
 
   const mlInputErrorKey = useCallback((value: string): string | null => {
     const trimmed = value.trim();
@@ -444,6 +538,9 @@ export function AddSessionScreen(): React.JSX.Element {
       setRightMlInput('0');
       setNote('');
       setTimestamp(new Date());
+      void AsyncStorage.removeItem(START_SESSION_DRAFT_STORAGE_KEY).catch((error) => {
+        console.warn('Failed to clear start session draft after save.', error);
+      });
       triggerHapticSuccess();
       setStartFeedback({
         messageKey: 'start.savedUndoHint',

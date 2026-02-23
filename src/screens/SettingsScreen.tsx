@@ -5,6 +5,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Switch,
@@ -36,6 +37,18 @@ const REMINDER_OPTIONS = Array.from(
 const WHEEL_ITEM_HEIGHT = 48;
 const WHEEL_VISIBLE_ROWS = 3;
 const WHEEL_HEIGHT = WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS;
+
+function csvEscape(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  const raw = String(value);
+  if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
+    return `"${raw.replaceAll('"', '""')}"`;
+  }
+  return raw;
+}
 
 export function SettingsScreen(): React.JSX.Element {
   const { reminderSettings, saveReminderSettings, profile, syncNow, loading, sessions, syncStatus } = useAppData();
@@ -201,6 +214,46 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  const onExportCsv = async (): Promise<void> => {
+    if (sessions.length === 0) {
+      Alert.alert(t('common.error'), t('settings.exportCsvEmpty'));
+      return;
+    }
+
+    try {
+      const rows = [...sessions]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map((session) =>
+          [
+            session.id,
+            session.timestamp,
+            new Date(session.timestamp).toISOString(),
+            session.leftMl,
+            session.rightMl,
+            session.totalMl,
+            session.durationSeconds,
+            session.note ?? '',
+            session.userId,
+            session.familyId
+          ]
+            .map(csvEscape)
+            .join(',')
+        );
+
+      const csv = [
+        'id,timestamp_ms,timestamp_iso,left_ml,right_ml,total_ml,duration_seconds,note,user_id,family_id',
+        ...rows
+      ].join('\n');
+
+      await Share.share({
+        title: 'MilkySync CSV',
+        message: csv
+      });
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('settings.exportCsvError')));
+    }
+  };
+
   if (loading || preferencesLoading) {
     return (
       <Screen>
@@ -294,6 +347,8 @@ export function SettingsScreen(): React.JSX.Element {
           {syncStatus.errorMessage ? <Text style={styles.errorText}>{syncStatus.errorMessage}</Text> : null}
 
           <AppButton label={t('settings.syncNow')} onPress={() => void onSyncNow()} variant="secondary" />
+          <AppButton label={t('settings.exportCsv')} onPress={() => void onExportCsv()} variant="secondary" />
+          <Text style={styles.helper}>{t('settings.exportCsvHint', { count: sessions.length })}</Text>
         </AppCard>
 
         <AppCard style={styles.card}>

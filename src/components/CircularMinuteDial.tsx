@@ -24,8 +24,9 @@ const TRACK_RADIUS = (OUTER_DIAMETER + INNER_DIAMETER) / 4;
 const KNOB_SIZE = 34;
 const MINUTES_PER_TURN = 60;
 const DEGREES_PER_MINUTE = 360 / MINUTES_PER_TURN;
-const TOUCH_MARGIN = 8;
+const TOUCH_MARGIN = 10;
 const MAX_DELTA_PER_MOVE_DEG = 18;
+const MIN_DRAG_RADIUS = INNER_DIAMETER / 2 - 24;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -135,7 +136,7 @@ export function CircularMinuteDial({
     const valueForKnob = valueRef.current;
     const knobAngleForHit = normalizeAngle((valueForKnob % MINUTES_PER_TURN) * DEGREES_PER_MINUTE);
     const knobCenter = pointOnCircle(centerRef.current, TRACK_RADIUS, knobAngleForHit);
-    return distance(x, y, knobCenter) <= KNOB_SIZE / 2 + 10;
+    return distance(x, y, knobCenter) <= KNOB_SIZE / 2 + 18;
   };
 
   const isTouchInActiveZone = (x: number, y: number): boolean =>
@@ -146,7 +147,9 @@ export function CircularMinuteDial({
       return;
     }
 
-    if (!isTouchOnVisibleRing(x, y)) {
+    // After a valid grab, allow moving slightly outside the ring.
+    // Only reject touches too close to center where angle becomes unstable.
+    if (distance(x, y, centerRef.current) < MIN_DRAG_RADIUS) {
       return;
     }
 

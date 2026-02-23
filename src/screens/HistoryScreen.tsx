@@ -1,10 +1,12 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   LayoutChangeEvent,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -89,6 +91,8 @@ const CHART_HEIGHT = 220;
 const CHART_PAD_X = 16;
 const CHART_PAD_Y = 14;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const SWIPE_ACTION_WIDTH = 88;
+const SWIPE_ACTION_TOTAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
 
 function startOfLocalWeekMonday(timestamp: number): number {
   const date = new Date(timestamp);
@@ -209,6 +213,123 @@ function buildYAxisTicks(axisMax: number): number[] {
   }
   const step = axisMax / 4;
   return [0, 1, 2, 3, 4].map((index) => Math.round(index * step));
+}
+
+type HistoryStyles = ReturnType<typeof createStyles>;
+
+type SwipeableHistoryRowProps = {
+  styles: HistoryStyles;
+  onPress: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  editLabel: string;
+  deleteLabel: string;
+  children: React.JSX.Element;
+};
+
+function SwipeableHistoryRow({
+  styles,
+  onPress,
+  onEdit,
+  onDelete,
+  editLabel,
+  deleteLabel,
+  children
+}: SwipeableHistoryRowProps): React.JSX.Element {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const offsetRef = useRef(0);
+
+  const animateTo = (toValue: number): void => {
+    offsetRef.current = toValue;
+    Animated.spring(translateX, {
+      toValue,
+      useNativeDriver: true,
+      bounciness: 0,
+      speed: 20
+    }).start();
+  };
+
+  const closeRow = (): void => {
+    animateTo(0);
+  };
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gestureState) =>
+          Math.abs(gestureState.dx) > 8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderGrant: () => {
+          translateX.stopAnimation((value) => {
+            offsetRef.current = typeof value === 'number' ? value : 0;
+          });
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          const next = Math.max(
+            -SWIPE_ACTION_TOTAL_WIDTH,
+            Math.min(0, offsetRef.current + gestureState.dx)
+          );
+          translateX.setValue(next);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const projected = offsetRef.current + gestureState.dx;
+          const shouldOpen =
+            projected < -SWIPE_ACTION_TOTAL_WIDTH * 0.4 || gestureState.vx < -0.35;
+          animateTo(shouldOpen ? -SWIPE_ACTION_TOTAL_WIDTH : 0);
+        },
+        onPanResponderTerminate: () => {
+          animateTo(offsetRef.current <= -SWIPE_ACTION_TOTAL_WIDTH / 2 ? -SWIPE_ACTION_TOTAL_WIDTH : 0);
+        }
+      }),
+    [translateX]
+  );
+
+  const handleRowPress = (): void => {
+    if (offsetRef.current < -4) {
+      closeRow();
+      return;
+    }
+    onPress();
+  };
+
+  return (
+    <View style={styles.swipeRowShell}>
+      <View style={styles.swipeActionsRight}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            closeRow();
+            onEdit();
+          }}
+          style={({ pressed }) => [styles.swipeActionButton, styles.swipeActionEdit, pressed && styles.chipPressed]}
+        >
+          <Text style={styles.swipeActionText}>{editLabel}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            closeRow();
+            onDelete();
+          }}
+          style={({ pressed }) => [
+            styles.swipeActionButton,
+            styles.swipeActionDelete,
+            pressed && styles.chipPressed
+          ]}
+        >
+          <Text style={styles.swipeActionText}>{deleteLabel}</Text>
+        </Pressable>
+      </View>
+
+      <Animated.View
+        style={[styles.swipeContent, { transform: [{ translateX }] }]}
+        {...panResponder.panHandlers}
+      >
+        <Pressable onPress={handleRowPress} accessibilityRole="button" style={({ pressed }) => pressed && styles.chipPressed}>
+          {children}
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
 }
 
 export function HistoryScreen(): React.JSX.Element {
@@ -501,8 +622,8 @@ export function HistoryScreen(): React.JSX.Element {
     }
   };
 
-  const onDeleteEdit = (): void => {
-    if (!editingSession || savingEdit || deletingEdit) {
+  const confirmDeleteSession = (sessionId: string): void => {
+    if (savingEdit || deletingEdit) {
       return;
     }
 
@@ -515,11 +636,11 @@ export function HistoryScreen(): React.JSX.Element {
           void (async () => {
             try {
               setDeletingEdit(true);
-              await deleteSession(editingSession.id);
+              await deleteSession(sessionId);
               setEditingSessionId(null);
               setHistoryFeedback({
                 messageKey: 'history.edit.deleteUndoHint',
-                undoSessionId: editingSession.id
+                undoSessionId: sessionId
               });
             } catch (error) {
               Alert.alert(t('common.error'), reportError(error, t('history.edit.deleteError')));
@@ -530,6 +651,13 @@ export function HistoryScreen(): React.JSX.Element {
         }
       }
     ]);
+  };
+
+  const onDeleteEdit = (): void => {
+    if (!editingSession) {
+      return;
+    }
+    confirmDeleteSession(editingSession.id);
   };
 
   const updateEditDatePart = (nextDate: Date): void => {
@@ -777,10 +905,13 @@ export function HistoryScreen(): React.JSX.Element {
           </AppCard>
         }
         renderItem={({ item }) => (
-          <Pressable
+          <SwipeableHistoryRow
+            styles={styles}
             onPress={() => openEditSession(item.id)}
-            accessibilityRole="button"
-            style={({ pressed }) => pressed && styles.chipPressed}
+            onEdit={() => openEditSession(item.id)}
+            onDelete={() => confirmDeleteSession(item.id)}
+            editLabel={t('history.edit.cta')}
+            deleteLabel={t('history.edit.delete')}
           >
             <AppCard style={styles.itemCard}>
               <View style={styles.itemHeaderRow}>
@@ -797,7 +928,7 @@ export function HistoryScreen(): React.JSX.Element {
               ) : null}
               {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
             </AppCard>
-          </Pressable>
+          </SwipeableHistoryRow>
         )}
       />
 
@@ -1145,6 +1276,39 @@ function createStyles(colors: AppColors) {
   },
   listContent: {
     paddingBottom: 24
+  },
+  swipeRowShell: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative'
+  },
+  swipeActionsRight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    flexDirection: 'row'
+  },
+  swipeActionButton: {
+    width: SWIPE_ACTION_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  swipeActionEdit: {
+    backgroundColor: colors.primary
+  },
+  swipeActionDelete: {
+    backgroundColor: colors.danger
+  },
+  swipeActionText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingHorizontal: 8
+  },
+  swipeContent: {
+    backgroundColor: 'transparent'
   },
   feedbackBanner: {
     position: 'absolute',

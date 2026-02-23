@@ -50,6 +50,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [leftMlInput, setLeftMlInput] = useState('0');
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
+  const [noteExpanded, setNoteExpanded] = useState(false);
   const [timestamp, setTimestamp] = useState(new Date());
   const [saving, setSaving] = useState(false);
 
@@ -573,16 +574,33 @@ export function AddSessionScreen(): React.JSX.Element {
           </View>
         )}
 
-        <Text style={styles.label}>{t('start.noteOptional')}</Text>
-        <TextInput
-          value={note}
-          onChangeText={setNote}
-          placeholder={t('start.notePlaceholder')}
-          style={[styles.input, styles.noteInput]}
-          multiline
-          placeholderTextColor={colors.textSecondary}
-          accessibilityLabel={t('start.noteA11y')}
-        />
+        <View style={styles.noteSection}>
+          <Pressable
+            onPress={() => setNoteExpanded((current) => !current)}
+            accessibilityRole="button"
+            accessibilityLabel={t('start.noteOptional')}
+            style={({ pressed }) => [styles.noteToggleButton, pressed && styles.timerPressed]}
+          >
+            <Text style={styles.label}>{t('start.noteOptional')}</Text>
+            <Text style={styles.noteToggleIcon}>{noteExpanded ? '▴' : '▾'}</Text>
+          </Pressable>
+          {!noteExpanded && note.trim().length > 0 ? (
+            <Text numberOfLines={1} style={styles.notePreviewText}>
+              {note.trim()}
+            </Text>
+          ) : null}
+          {noteExpanded ? (
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder={t('start.notePlaceholder')}
+              style={[styles.input, styles.noteInput]}
+              multiline
+              placeholderTextColor={colors.textSecondary}
+              accessibilityLabel={t('start.noteA11y')}
+            />
+          ) : null}
+        </View>
 
         <Pressable
           onPress={onSave}
@@ -881,6 +899,30 @@ function createStyles(colors: AppColors) {
     minHeight: 100,
     paddingVertical: 12,
     textAlignVertical: 'top'
+  },
+  noteSection: {
+    gap: 8
+  },
+  noteToggleButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  noteToggleIcon: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: '700'
+  },
+  notePreviewText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    paddingHorizontal: 4
   },
   saveButton: {
     minHeight: 52,

@@ -14,6 +14,8 @@ import {
   View
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 import { AppButton } from '@/components/AppButton';
 import { AppCard } from '@/components/AppCard';
@@ -265,6 +267,26 @@ export function SettingsScreen(): React.JSX.Element {
         'id,timestamp_ms,timestamp_iso,left_ml,right_ml,total_ml,duration_seconds,note,user_id,family_id',
         ...rows
       ].join('\n');
+
+      const fileDirectory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (!fileDirectory) {
+        throw new Error('No writable file directory is available.');
+      }
+
+      const timestamp = new Date().toISOString().replaceAll(':', '-');
+      const fileUri = `${fileDirectory}milkysync-export-${timestamp}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8
+      });
+
+      const canShareFile = await Sharing.isAvailableAsync();
+      if (canShareFile) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'MilkySync CSV'
+        });
+        return;
+      }
 
       await Share.share({
         title: 'MilkySync CSV',

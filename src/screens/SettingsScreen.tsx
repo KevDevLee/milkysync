@@ -26,6 +26,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { useAuth } from '@/services/auth/AuthContext';
 import { familyService } from '@/services/family/FamilyService';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
+import { supabase } from '@/services/supabase/client';
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors } from '@/theme/colors';
 import { formatDateTime, formatRelativeDuration } from '@/utils/date';
@@ -68,6 +69,11 @@ export function SettingsScreen(): React.JSX.Element {
   const [notificationPermissionGranted, setNotificationPermissionGranted] = useState<boolean | null>(null);
   const [notificationPermissionCanAskAgain, setNotificationPermissionCanAskAgain] = useState(true);
   const [notificationPermissionBusy, setNotificationPermissionBusy] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [refreshingAccount, setRefreshingAccount] = useState(false);
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
@@ -224,6 +230,62 @@ export function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  const onRefreshAccount = async (): Promise<void> => {
+    try {
+      setRefreshingAccount(true);
+      await refreshProfile();
+      Alert.alert(t('common.saved'), t('settings.account.refreshSuccess'));
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('settings.account.refreshError')));
+    } finally {
+      setRefreshingAccount(false);
+    }
+  };
+
+  const resetPasswordModalState = (): void => {
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setChangingPassword(false);
+  };
+
+  const closePasswordModal = (): void => {
+    if (changingPassword) {
+      return;
+    }
+    resetPasswordModalState();
+    setShowPasswordModal(false);
+  };
+
+  const onChangePassword = async (): Promise<void> => {
+    const nextPassword = newPassword.trim();
+
+    if (nextPassword.length < 6) {
+      Alert.alert(t('settings.validationTitle'), t('settings.account.passwordMinLength'));
+      return;
+    }
+
+    if (nextPassword !== confirmNewPassword.trim()) {
+      Alert.alert(t('settings.validationTitle'), t('settings.account.passwordMismatch'));
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      const { error } = await supabase.auth.updateUser({ password: nextPassword });
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert(t('common.saved'), t('settings.account.passwordChanged'));
+      resetPasswordModalState();
+      setShowPasswordModal(false);
+    } catch (error) {
+      Alert.alert(t('common.error'), reportError(error, t('settings.account.passwordChangeError')));
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const onSyncNow = async (): Promise<void> => {
     try {
       const ok = await syncNow();
@@ -350,11 +412,36 @@ export function SettingsScreen(): React.JSX.Element {
         <Text style={styles.title}>{t('settings.title')}</Text>
 
         <AppCard style={styles.card}>
-          <Text style={styles.label}>{t('settings.loggedInAs')}</Text>
-          <Text style={styles.helper}>{profile.email}</Text>
-          <Text style={styles.helper}>
-            {t('settings.role')}: {roleLabel}
-          </Text>
+          <Text style={styles.sectionTitle}>{t('settings.account.title')}</Text>
+
+          <View style={styles.accountInfoBox}>
+            <Text style={styles.fieldLabel}>{t('settings.loggedInAs')}</Text>
+            <Text style={styles.accountPrimaryValue}>{profile.email}</Text>
+            <Text style={styles.helper}>
+              {t('settings.role')}: {roleLabel}
+            </Text>
+            <Text style={styles.helper}>
+              {t('settings.familyId')}: {profile.familyId ?? t('settings.notSet')}
+            </Text>
+          </View>
+
+          <View style={styles.accountActionsRow}>
+            <AppButton
+              label={t('settings.account.changePassword')}
+              onPress={() => setShowPasswordModal(true)}
+              variant="secondary"
+              style={styles.accountActionButton}
+            />
+            <AppButton
+              label={refreshingAccount ? t('common.working') : t('settings.account.refreshProfile')}
+              onPress={() => void onRefreshAccount()}
+              disabled={refreshingAccount}
+              variant="secondary"
+              style={styles.accountActionButton}
+            />
+          </View>
+
+          <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
         </AppCard>
 
         <AppCard style={styles.card}>
@@ -508,10 +595,6 @@ export function SettingsScreen(): React.JSX.Element {
 
         <AppCard style={styles.card}>
           <Text style={styles.sectionTitle}>{t('settings.partnerPairing')}</Text>
-          <Text style={styles.helper}>
-            {t('settings.familyId')}: {profile.familyId ?? t('settings.notSet')}
-          </Text>
-
           <AppButton
             label={pairingBusy ? t('common.working') : t('settings.generateInviteCode')}
             onPress={() => void onGenerateCode()}
@@ -540,8 +623,57 @@ export function SettingsScreen(): React.JSX.Element {
           />
         </AppCard>
 
-        <AppButton label={t('settings.logOut')} onPress={() => void onSignOut()} variant="danger" />
       </ScrollView>
+
+      <Modal
+        visible={showPasswordModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closePasswordModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('settings.account.changePassword')}</Text>
+            <Text style={styles.modalHint}>{t('settings.account.passwordHint')}</Text>
+
+            <AppInput
+              label={t('settings.account.newPassword')}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+            />
+
+            <AppInput
+              label={t('settings.account.confirmPassword')}
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+            />
+
+            <View style={styles.modalActionsRow}>
+              <AppButton
+                label={t('settings.cancel')}
+                onPress={closePasswordModal}
+                variant="secondary"
+                disabled={changingPassword}
+                style={styles.modalActionButton}
+              />
+              <AppButton
+                label={changingPassword ? t('common.working') : t('settings.account.savePassword')}
+                onPress={() => void onChangePassword()}
+                disabled={changingPassword}
+                style={styles.modalActionButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showReminderWheel}
@@ -657,6 +789,26 @@ function createStyles(colors: AppColors) {
     helper: {
       color: colors.textSecondary,
       fontSize: 14
+    },
+    accountInfoBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      backgroundColor: colors.background,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 4
+    },
+    accountPrimaryValue: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700'
+    },
+    accountActionsRow: {
+      gap: 8
+    },
+    accountActionButton: {
+      width: '100%'
     },
     errorText: {
       color: colors.danger,

@@ -743,8 +743,9 @@ export function AddSessionScreen(): React.JSX.Element {
                 </Pressable>
 
                 <View style={styles.mlStepperValueCenter}>
-                  <Text style={styles.mlStepperValue}>{parseMlInputValue(leftMlInput)}</Text>
-                  <Text style={styles.mlStepperUnit}>ml</Text>
+                  <Text numberOfLines={1} style={styles.mlStepperValue}>
+                    {parseMlInputValue(leftMlInput)}
+                  </Text>
                 </View>
 
                 <Pressable
@@ -811,8 +812,9 @@ export function AddSessionScreen(): React.JSX.Element {
                 </Pressable>
 
                 <View style={styles.mlStepperValueCenter}>
-                  <Text style={styles.mlStepperValue}>{parseMlInputValue(rightMlInput)}</Text>
-                  <Text style={styles.mlStepperUnit}>ml</Text>
+                  <Text numberOfLines={1} style={styles.mlStepperValue}>
+                    {parseMlInputValue(rightMlInput)}
+                  </Text>
                 </View>
 
                 <Pressable
@@ -1176,14 +1178,15 @@ function createStyles(colors: AppColors) {
   },
   mlStepperValueCenter: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 6
   },
   mlPrimaryAdjustButton: {
-    width: 44,
-    minHeight: 44,
+    width: 36,
+    minHeight: 36,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1196,18 +1199,19 @@ function createStyles(colors: AppColors) {
   },
   mlPrimaryAdjustButtonText: {
     color: colors.primary,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    lineHeight: 28
+    lineHeight: 22
   },
   mlPrimaryAdjustButtonTextDisabled: {
     color: colors.textSecondary
   },
   mlStepperValue: {
     color: colors.textPrimary,
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
-    fontVariant: ['tabular-nums']
+    fontVariant: ['tabular-nums'],
+    flexShrink: 1
   },
   mlStepperUnit: {
     color: colors.textSecondary,

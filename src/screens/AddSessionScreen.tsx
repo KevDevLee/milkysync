@@ -41,7 +41,7 @@ const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 const START_SESSION_DRAFT_STORAGE_KEY = '@milkysync:start_session_draft';
-const QUICK_ML_INCREMENTS = [10, 20, 30] as const;
+const ML_STEPPER_BUTTON_DELTAS = [-10, -1, 1, 10] as const;
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
@@ -72,8 +72,6 @@ export function AddSessionScreen(): React.JSX.Element {
     undoSessionId?: string;
   } | null>(null);
   const [undoingSave, setUndoingSave] = useState(false);
-  const leftMlInputRef = useRef<TextInput>(null);
-  const rightMlInputRef = useRef<TextInput>(null);
   const minuteWheelRef = useRef<ScrollView>(null);
   const minuteWheelMomentumRef = useRef(false);
   const suppressMinuteWheelEventsRef = useRef(false);
@@ -378,16 +376,21 @@ export function AddSessionScreen(): React.JSX.Element {
   const rightMlErrorKey = mlInputErrorKey(rightMlInput);
   const hasMlInputError = Boolean(leftMlErrorKey || rightMlErrorKey);
 
-  const applyQuickMlIncrement = useCallback(
+  const applyMlDelta = useCallback(
     (side: 'left' | 'right', delta: number): void => {
       triggerHapticLight();
+      const getNextValue = (current: string): string => {
+        const next = Math.max(0, parseMlInputValue(current) + delta);
+        return String(clampMl(next));
+      };
+
       if (side === 'left') {
-        setLeftMlInput(String(parseMlInputValue(leftMlInput) + delta));
+        setLeftMlInput((current) => getNextValue(current));
         return;
       }
-      setRightMlInput(String(parseMlInputValue(rightMlInput) + delta));
+      setRightMlInput((current) => getNextValue(current));
     },
-    [leftMlInput, parseMlInputValue, rightMlInput, triggerHapticLight]
+    [parseMlInputValue, triggerHapticLight]
   );
 
   const displayMinutes = Math.floor(remainingSeconds / 60);
@@ -716,55 +719,55 @@ export function AddSessionScreen(): React.JSX.Element {
         <View style={styles.row}>
           <View style={styles.fieldHalf}>
             <Text style={styles.label}>{t('start.leftMl')}</Text>
-            <TextInput
-              ref={leftMlInputRef}
-              value={leftMlInput}
-              onChangeText={setLeftMlInput}
-              keyboardType="numeric"
-              style={[styles.input, leftMlErrorKey ? styles.inputError : null]}
-              accessibilityLabel={t('start.leftAmountA11y')}
-              returnKeyType="next"
-              onSubmitEditing={() => rightMlInputRef.current?.focus()}
-            />
-            {leftMlErrorKey ? <Text style={styles.fieldErrorText}>{t(leftMlErrorKey)}</Text> : null}
-            <View style={styles.quickMlRow}>
-              {QUICK_ML_INCREMENTS.map((increment) => (
-                <Pressable
-                  key={`left-${increment}`}
-                  onPress={() => applyQuickMlIncrement('left', increment)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.quickMlButton, pressed && styles.timerPressed]}
-                >
-                  <Text style={styles.quickMlButtonText}>+{increment}</Text>
-                </Pressable>
-              ))}
+            <View style={[styles.mlStepperCard, leftMlErrorKey ? styles.inputError : null]}>
+              <View style={styles.mlStepperValueRow}>
+                <Text style={styles.mlStepperValue}>{parseMlInputValue(leftMlInput)}</Text>
+                <Text style={styles.mlStepperUnit}>ml</Text>
+              </View>
+              <View style={styles.mlStepperButtonsRow}>
+                {ML_STEPPER_BUTTON_DELTAS.map((delta) => (
+                  <Pressable
+                    key={`left-${delta}`}
+                    onPress={() => applyMlDelta('left', delta)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('start.leftMl')} ${delta > 0 ? '+' : ''}${delta} ml`}
+                    style={({ pressed }) => [styles.mlStepperButton, pressed && styles.timerPressed]}
+                  >
+                    <Text style={styles.mlStepperButtonText}>
+                      {delta > 0 ? '+' : ''}
+                      {delta}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
+            {leftMlErrorKey ? <Text style={styles.fieldErrorText}>{t(leftMlErrorKey)}</Text> : null}
           </View>
           <View style={styles.fieldHalf}>
             <Text style={styles.label}>{t('start.rightMl')}</Text>
-            <TextInput
-              ref={rightMlInputRef}
-              value={rightMlInput}
-              onChangeText={setRightMlInput}
-              keyboardType="numeric"
-              style={[styles.input, rightMlErrorKey ? styles.inputError : null]}
-              accessibilityLabel={t('start.rightAmountA11y')}
-              returnKeyType="done"
-              onSubmitEditing={() => rightMlInputRef.current?.blur()}
-            />
-            {rightMlErrorKey ? <Text style={styles.fieldErrorText}>{t(rightMlErrorKey)}</Text> : null}
-            <View style={styles.quickMlRow}>
-              {QUICK_ML_INCREMENTS.map((increment) => (
-                <Pressable
-                  key={`right-${increment}`}
-                  onPress={() => applyQuickMlIncrement('right', increment)}
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.quickMlButton, pressed && styles.timerPressed]}
-                >
-                  <Text style={styles.quickMlButtonText}>+{increment}</Text>
-                </Pressable>
-              ))}
+            <View style={[styles.mlStepperCard, rightMlErrorKey ? styles.inputError : null]}>
+              <View style={styles.mlStepperValueRow}>
+                <Text style={styles.mlStepperValue}>{parseMlInputValue(rightMlInput)}</Text>
+                <Text style={styles.mlStepperUnit}>ml</Text>
+              </View>
+              <View style={styles.mlStepperButtonsRow}>
+                {ML_STEPPER_BUTTON_DELTAS.map((delta) => (
+                  <Pressable
+                    key={`right-${delta}`}
+                    onPress={() => applyMlDelta('right', delta)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('start.rightMl')} ${delta > 0 ? '+' : ''}${delta} ml`}
+                    style={({ pressed }) => [styles.mlStepperButton, pressed && styles.timerPressed]}
+                  >
+                    <Text style={styles.mlStepperButtonText}>
+                      {delta > 0 ? '+' : ''}
+                      {delta}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
+            {rightMlErrorKey ? <Text style={styles.fieldErrorText}>{t(rightMlErrorKey)}</Text> : null}
           </View>
         </View>
 
@@ -1067,24 +1070,54 @@ function createStyles(colors: AppColors) {
     fontSize: 12,
     marginTop: -2
   },
-  quickMlRow: {
+  mlStepperCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    padding: 10,
+    gap: 10
+  },
+  mlStepperValueRow: {
+    minHeight: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6
   },
-  quickMlButton: {
-    minHeight: 32,
-    minWidth: 48,
-    borderRadius: 16,
+  mlStepperValue: {
+    color: colors.textPrimary,
+    fontSize: 26,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums']
+  },
+  mlStepperUnit: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  mlStepperButtonsRow: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  mlStepperButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10
+    justifyContent: 'center'
   },
-  quickMlButtonText: {
+  mlStepperButtonText: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700'
   },
   label: {

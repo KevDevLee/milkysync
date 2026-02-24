@@ -41,7 +41,7 @@ const MINUTE_WHEEL_HEIGHT = MINUTE_ITEM_HEIGHT * MINUTE_WHEEL_VISIBLE_ROWS;
 const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 const START_SESSION_DRAFT_STORAGE_KEY = '@milkysync:start_session_draft';
-const ML_STEPPER_BUTTON_DELTAS = [-10, -1, 1, 10] as const;
+const ML_STEPPER_QUICK_DELTAS = [-10, -5, 5, 10] as const;
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
@@ -721,19 +721,61 @@ export function AddSessionScreen(): React.JSX.Element {
             <Text style={styles.label}>{t('start.leftMl')}</Text>
             <View style={[styles.mlStepperCard, leftMlErrorKey ? styles.inputError : null]}>
               <View style={styles.mlStepperValueRow}>
-                <Text style={styles.mlStepperValue}>{parseMlInputValue(leftMlInput)}</Text>
-                <Text style={styles.mlStepperUnit}>ml</Text>
+                <Pressable
+                  onPress={() => applyMlDelta('left', -1)}
+                  disabled={parseMlInputValue(leftMlInput) <= 0}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('start.leftMl')} -1 ml`}
+                  style={({ pressed }) => [
+                    styles.mlPrimaryAdjustButton,
+                    parseMlInputValue(leftMlInput) <= 0 && styles.mlPrimaryAdjustButtonDisabled,
+                    pressed && styles.timerPressed
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.mlPrimaryAdjustButtonText,
+                      parseMlInputValue(leftMlInput) <= 0 && styles.mlPrimaryAdjustButtonTextDisabled
+                    ]}
+                  >
+                    -
+                  </Text>
+                </Pressable>
+
+                <View style={styles.mlStepperValueCenter}>
+                  <Text style={styles.mlStepperValue}>{parseMlInputValue(leftMlInput)}</Text>
+                  <Text style={styles.mlStepperUnit}>ml</Text>
+                </View>
+
+                <Pressable
+                  onPress={() => applyMlDelta('left', 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('start.leftMl')} +1 ml`}
+                  style={({ pressed }) => [styles.mlPrimaryAdjustButton, pressed && styles.timerPressed]}
+                >
+                  <Text style={styles.mlPrimaryAdjustButtonText}>+</Text>
+                </Pressable>
               </View>
               <View style={styles.mlStepperButtonsRow}>
-                {ML_STEPPER_BUTTON_DELTAS.map((delta) => (
+                {ML_STEPPER_QUICK_DELTAS.map((delta) => (
                   <Pressable
                     key={`left-${delta}`}
                     onPress={() => applyMlDelta('left', delta)}
+                    disabled={delta < 0 && parseMlInputValue(leftMlInput) <= 0}
                     accessibilityRole="button"
                     accessibilityLabel={`${t('start.leftMl')} ${delta > 0 ? '+' : ''}${delta} ml`}
-                    style={({ pressed }) => [styles.mlStepperButton, pressed && styles.timerPressed]}
+                    style={({ pressed }) => [
+                      styles.mlStepperButton,
+                      delta < 0 && parseMlInputValue(leftMlInput) <= 0 && styles.mlStepperButtonDisabled,
+                      pressed && styles.timerPressed
+                    ]}
                   >
-                    <Text style={styles.mlStepperButtonText}>
+                    <Text
+                      style={[
+                        styles.mlStepperButtonText,
+                        delta < 0 && parseMlInputValue(leftMlInput) <= 0 && styles.mlStepperButtonTextDisabled
+                      ]}
+                    >
                       {delta > 0 ? '+' : ''}
                       {delta}
                     </Text>
@@ -747,19 +789,61 @@ export function AddSessionScreen(): React.JSX.Element {
             <Text style={styles.label}>{t('start.rightMl')}</Text>
             <View style={[styles.mlStepperCard, rightMlErrorKey ? styles.inputError : null]}>
               <View style={styles.mlStepperValueRow}>
-                <Text style={styles.mlStepperValue}>{parseMlInputValue(rightMlInput)}</Text>
-                <Text style={styles.mlStepperUnit}>ml</Text>
+                <Pressable
+                  onPress={() => applyMlDelta('right', -1)}
+                  disabled={parseMlInputValue(rightMlInput) <= 0}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('start.rightMl')} -1 ml`}
+                  style={({ pressed }) => [
+                    styles.mlPrimaryAdjustButton,
+                    parseMlInputValue(rightMlInput) <= 0 && styles.mlPrimaryAdjustButtonDisabled,
+                    pressed && styles.timerPressed
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.mlPrimaryAdjustButtonText,
+                      parseMlInputValue(rightMlInput) <= 0 && styles.mlPrimaryAdjustButtonTextDisabled
+                    ]}
+                  >
+                    -
+                  </Text>
+                </Pressable>
+
+                <View style={styles.mlStepperValueCenter}>
+                  <Text style={styles.mlStepperValue}>{parseMlInputValue(rightMlInput)}</Text>
+                  <Text style={styles.mlStepperUnit}>ml</Text>
+                </View>
+
+                <Pressable
+                  onPress={() => applyMlDelta('right', 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('start.rightMl')} +1 ml`}
+                  style={({ pressed }) => [styles.mlPrimaryAdjustButton, pressed && styles.timerPressed]}
+                >
+                  <Text style={styles.mlPrimaryAdjustButtonText}>+</Text>
+                </Pressable>
               </View>
               <View style={styles.mlStepperButtonsRow}>
-                {ML_STEPPER_BUTTON_DELTAS.map((delta) => (
+                {ML_STEPPER_QUICK_DELTAS.map((delta) => (
                   <Pressable
                     key={`right-${delta}`}
                     onPress={() => applyMlDelta('right', delta)}
+                    disabled={delta < 0 && parseMlInputValue(rightMlInput) <= 0}
                     accessibilityRole="button"
                     accessibilityLabel={`${t('start.rightMl')} ${delta > 0 ? '+' : ''}${delta} ml`}
-                    style={({ pressed }) => [styles.mlStepperButton, pressed && styles.timerPressed]}
+                    style={({ pressed }) => [
+                      styles.mlStepperButton,
+                      delta < 0 && parseMlInputValue(rightMlInput) <= 0 && styles.mlStepperButtonDisabled,
+                      pressed && styles.timerPressed
+                    ]}
                   >
-                    <Text style={styles.mlStepperButtonText}>
+                    <Text
+                      style={[
+                        styles.mlStepperButtonText,
+                        delta < 0 && parseMlInputValue(rightMlInput) <= 0 && styles.mlStepperButtonTextDisabled
+                      ]}
+                    >
                       {delta > 0 ? '+' : ''}
                       {delta}
                     </Text>
@@ -1084,11 +1168,40 @@ function createStyles(colors: AppColors) {
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  mlStepperValueCenter: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     gap: 6
+  },
+  mlPrimaryAdjustButton: {
+    width: 44,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mlPrimaryAdjustButtonDisabled: {
+    opacity: 0.45
+  },
+  mlPrimaryAdjustButtonText: {
+    color: colors.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 28
+  },
+  mlPrimaryAdjustButtonTextDisabled: {
+    color: colors.textSecondary
   },
   mlStepperValue: {
     color: colors.textPrimary,
@@ -1115,10 +1228,16 @@ function createStyles(colors: AppColors) {
     alignItems: 'center',
     justifyContent: 'center'
   },
+  mlStepperButtonDisabled: {
+    opacity: 0.45
+  },
   mlStepperButtonText: {
     color: colors.primary,
     fontSize: 15,
     fontWeight: '700'
+  },
+  mlStepperButtonTextDisabled: {
+    color: colors.textSecondary
   },
   label: {
     fontSize: 14,

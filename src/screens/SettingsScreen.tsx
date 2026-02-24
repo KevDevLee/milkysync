@@ -70,6 +70,7 @@ export function SettingsScreen(): React.JSX.Element {
   const [notificationPermissionCanAskAgain, setNotificationPermissionCanAskAgain] = useState(true);
   const [notificationPermissionBusy, setNotificationPermissionBusy] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
@@ -243,6 +244,7 @@ export function SettingsScreen(): React.JSX.Element {
   };
 
   const resetPasswordModalState = (): void => {
+    setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
     setChangingPassword(false);
@@ -257,7 +259,13 @@ export function SettingsScreen(): React.JSX.Element {
   };
 
   const onChangePassword = async (): Promise<void> => {
+    const currentPasswordValue = currentPassword.trim();
     const nextPassword = newPassword.trim();
+
+    if (!currentPasswordValue) {
+      Alert.alert(t('settings.validationTitle'), t('settings.account.currentPasswordRequired'));
+      return;
+    }
 
     if (nextPassword.length < 6) {
       Alert.alert(t('settings.validationTitle'), t('settings.account.passwordMinLength'));
@@ -271,6 +279,17 @@ export function SettingsScreen(): React.JSX.Element {
 
     try {
       setChangingPassword(true);
+
+      const signInResult = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: currentPasswordValue
+      });
+
+      if (signInResult.error) {
+        Alert.alert(t('settings.validationTitle'), t('settings.account.currentPasswordInvalid'));
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: nextPassword });
       if (error) {
         throw error;
@@ -635,6 +654,16 @@ export function SettingsScreen(): React.JSX.Element {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('settings.account.changePassword')}</Text>
             <Text style={styles.modalHint}>{t('settings.account.passwordHint')}</Text>
+
+            <AppInput
+              label={t('settings.account.currentPassword')}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+            />
 
             <AppInput
               label={t('settings.account.newPassword')}

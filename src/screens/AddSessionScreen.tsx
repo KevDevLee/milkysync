@@ -1,5 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -49,6 +51,9 @@ export function AddSessionScreen(): React.JSX.Element {
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
+  const [brandFontLoaded] = useFonts({
+    Inter_600SemiBold
+  });
   const [leftMlInput, setLeftMlInput] = useState('0');
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
@@ -612,6 +617,21 @@ export function AddSessionScreen(): React.JSX.Element {
 
   return (
     <Screen>
+      <View style={styles.brandHeaderRow}>
+        <View style={styles.brandWordmarkRow}>
+          <Text
+            style={[
+              styles.brandWordmarkText,
+              brandFontLoaded && styles.brandWordmarkTextInter,
+              styles.brandWordmarkInvertedU
+            ]}
+          >
+            U
+          </Text>
+          <Text style={[styles.brandWordmarkText, brandFontLoaded && styles.brandWordmarkTextInter]}>URA</Text>
+        </View>
+      </View>
+
       <ScrollView
         style={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -743,7 +763,13 @@ export function AddSessionScreen(): React.JSX.Element {
                 </Pressable>
 
                 <View style={styles.mlStepperValueCenter}>
-                  <Text numberOfLines={1} style={styles.mlStepperValue}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.mlStepperValue,
+                      parseMlInputValue(leftMlInput) >= 100 && styles.mlStepperValueCompact
+                    ]}
+                  >
                     {parseMlInputValue(leftMlInput)}
                   </Text>
                 </View>
@@ -812,7 +838,13 @@ export function AddSessionScreen(): React.JSX.Element {
                 </Pressable>
 
                 <View style={styles.mlStepperValueCenter}>
-                  <Text numberOfLines={1} style={styles.mlStepperValue}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.mlStepperValue,
+                      parseMlInputValue(rightMlInput) >= 100 && styles.mlStepperValueCompact
+                    ]}
+                  >
                     {parseMlInputValue(rightMlInput)}
                   </Text>
                 </View>
@@ -1094,6 +1126,34 @@ function createStyles(colors: AppColors) {
     paddingBottom: 16,
     gap: 10
   },
+  brandHeaderRow: {
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 6
+  },
+  brandWordmarkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2
+  },
+  brandWordmarkText: {
+    color: colors.textPrimary,
+    fontSize: 48,
+    fontWeight: '700',
+    letterSpacing: 4
+  },
+  brandWordmarkTextInter: {
+    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
+    fontSize: 48,
+    letterSpacing: 4.8,
+    lineHeight: 56
+  },
+  brandWordmarkInvertedU: {
+    transform: [{ rotate: '180deg' }],
+    marginRight: 2
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -1212,6 +1272,9 @@ function createStyles(colors: AppColors) {
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     flexShrink: 1
+  },
+  mlStepperValueCompact: {
+    fontSize: 18
   },
   mlStepperUnit: {
     color: colors.textSecondary,

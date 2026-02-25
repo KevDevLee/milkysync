@@ -7,7 +7,6 @@ import { useMemo } from 'react';
 import { useI18n } from '@/i18n/useI18n';
 import { AddSessionScreen } from '@/screens/AddSessionScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
-import { DashboardScreen } from '@/screens/DashboardScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { useAuth } from '@/services/auth/AuthContext';
@@ -22,9 +21,6 @@ const Tabs = createBottomTabNavigator<AppTabsParamList>();
 function tabIconNameForRoute(routeName: keyof AppTabsParamList, focused: boolean): keyof typeof Ionicons.glyphMap {
   if (routeName === 'AddSession') {
     return focused ? 'timer' : 'timer-outline';
-  }
-  if (routeName === 'Overview') {
-    return focused ? 'speedometer' : 'speedometer-outline';
   }
   if (routeName === 'History') {
     return focused ? 'analytics' : 'analytics-outline';
@@ -61,7 +57,6 @@ function AppTabs(): React.JSX.Element {
       })}
     >
       <Tabs.Screen name="AddSession" component={AddSessionScreen} options={{ title: t('tabs.start') }} />
-      <Tabs.Screen name="Overview" component={DashboardScreen} options={{ title: t('tabs.overview') }} />
       <Tabs.Screen name="History" component={HistoryScreen} options={{ title: t('tabs.history') }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ title: t('tabs.settings') }} />
     </Tabs.Navigator>

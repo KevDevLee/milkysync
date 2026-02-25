@@ -3,7 +3,6 @@ export type AuthStackParamList = {
 };
 
 export type AppTabsParamList = {
-  Overview: undefined;
   AddSession: undefined;
   History: undefined;
   Settings: undefined;

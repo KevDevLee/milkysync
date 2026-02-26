@@ -55,6 +55,7 @@ type ChartTick = {
 type ChartGuide = {
   key: string;
   x: number;
+  label: string;
 };
 
 type MetricSeries = {
@@ -532,7 +533,8 @@ export function HistoryScreen(): React.JSX.Element {
 
     const xGuides = [0.25, 0.5, 0.75].map((ratio, index) => ({
       key: `x-guide-${index}-${ratio}`,
-      x: CHART_PAD_X + ratio * plotWidth
+      x: CHART_PAD_X + ratio * plotWidth,
+      label: formatRangeBoundary(domainStart + Math.floor(timeSpan * ratio), selectedRange)
     }));
     const midTimestamp = domainStart + Math.floor(timeSpan / 2);
 
@@ -883,6 +885,17 @@ export function HistoryScreen(): React.JSX.Element {
                     <Text style={[styles.axisLabel, styles.axisLabelEnd]} numberOfLines={1}>
                       {chartData.endLabel}
                     </Text>
+                  </View>
+                  <View style={styles.chartGuideLabelRail}>
+                    {chartData.xGuides.map((guide) => (
+                      <Text
+                        key={`guide-label-${guide.key}`}
+                        style={[styles.chartGuideLabel, { left: guide.x - 34 }]}
+                        numberOfLines={1}
+                      >
+                        {guide.label}
+                      </Text>
+                    ))}
                   </View>
 
                   <Text style={styles.chartMeta}>
@@ -1278,6 +1291,18 @@ function createStyles(colors: AppColors) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center'
+  },
+  chartGuideLabelRail: {
+    position: 'relative',
+    height: 16,
+    marginTop: 2
+  },
+  chartGuideLabel: {
+    position: 'absolute',
+    width: 68,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    fontSize: 10
   },
   axisLabel: {
     color: colors.textSecondary,

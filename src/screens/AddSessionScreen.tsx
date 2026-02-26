@@ -26,9 +26,8 @@ import { useAppPreferences } from '@/services/preferences/AppPreferencesContext'
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
-import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
+import { formatDateTime, formatRelativeDuration } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
-import { computeNextReminderTimestamp } from '@/utils/reminder';
 
 const MIN_SELECTABLE_MINUTES = 1;
 const MAX_SESSION_TIMER_MINUTES = 360;
@@ -402,13 +401,6 @@ export function AddSessionScreen(): React.JSX.Element {
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
-  const nextReminderAt = useMemo(
-    () => computeNextReminderTimestamp(lastSession?.timestamp ?? null, reminderSettings.intervalMinutes, now),
-    [lastSession?.timestamp, now, reminderSettings.intervalMinutes]
-  );
-  const nextReminderLabel = reminderSettings.enabled
-    ? formatRelativeDuration(nextReminderAt, now)
-    : t('overview.remindersDisabled');
   const hasPartialCountdown = remainingSeconds !== targetDurationSeconds;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
   const minuteWheelItems = useMemo(
@@ -679,18 +671,6 @@ export function AddSessionScreen(): React.JSX.Element {
               <Text style={styles.lastSessionMeta}>{t('overview.today')}</Text>
             </View>
           </View>
-        </AppCard>
-
-        <AppCard style={styles.nextReminderCard}>
-          <Text style={styles.lastSessionLabel}>{t('overview.nextReminder')}</Text>
-          <Text style={styles.nextReminderValue}>{nextReminderLabel}</Text>
-          <Text style={styles.lastSessionMeta}>
-            {reminderSettings.enabled
-              ? `${t('overview.scheduledFor')} ${formatTime(nextReminderAt)} • ${t('overview.everyMinutes', {
-                  minutes: reminderSettings.intervalMinutes
-                })}`
-              : t('overview.turnOnInSettings')}
-          </Text>
         </AppCard>
 
         <Text style={styles.title}>{t('start.title')}</Text>
@@ -1147,10 +1127,10 @@ function createStyles(colors: AppColors) {
     gap: 10
   },
   brandHeaderRow: {
-    minHeight: 44,
+    minHeight: 28,
     justifyContent: 'center',
     alignItems: 'flex-start',
-    marginBottom: 6
+    marginBottom: 4
   },
   brandWordmarkRow: {
     flexDirection: 'row',
@@ -1159,20 +1139,20 @@ function createStyles(colors: AppColors) {
   },
   brandWordmarkText: {
     color: colors.textPrimary,
-    fontSize: 48,
+    fontSize: 24,
     fontWeight: '700',
-    letterSpacing: 4
+    letterSpacing: 2
   },
   brandWordmarkTextInter: {
     fontFamily: 'Inter_600SemiBold',
     fontWeight: '600',
-    fontSize: 48,
-    letterSpacing: 4.8,
-    lineHeight: 56
+    fontSize: 24,
+    letterSpacing: 2.4,
+    lineHeight: 28
   },
   brandWordmarkInvertedU: {
     transform: [{ rotate: '180deg' }],
-    marginRight: 2
+    marginRight: 1
   },
   title: {
     fontSize: 28,
@@ -1182,11 +1162,7 @@ function createStyles(colors: AppColors) {
   },
   lastSessionCard: {
     marginBottom: 4,
-    gap: 3
-  },
-  nextReminderCard: {
-    marginBottom: 4,
-    gap: 3
+    gap: 8
   },
   topStatsRow: {
     flexDirection: 'row',
@@ -1211,11 +1187,6 @@ function createStyles(colors: AppColors) {
   },
   lastSessionValue: {
     fontSize: 18,
-    fontWeight: '700',
-    color: colors.textPrimary
-  },
-  nextReminderValue: {
-    fontSize: 20,
     fontWeight: '700',
     color: colors.textPrimary
   },

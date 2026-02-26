@@ -52,6 +52,11 @@ type ChartTick = {
   y: number;
 };
 
+type ChartGuide = {
+  key: string;
+  x: number;
+};
+
 type MetricSeries = {
   key: TrendMetric;
   label: string;
@@ -469,7 +474,9 @@ export function HistoryScreen(): React.JSX.Element {
         series: METRIC_DEFS.map((metric) => ({ ...metric, points: [] as ChartPoint[] })),
         maxValue: 0,
         yTicks: [] as ChartTick[],
+        xGuides: [] as ChartGuide[],
         startLabel: rangeBounds.start === Number.NEGATIVE_INFINITY ? '' : formatRangeBoundary(rangeBounds.start, selectedRange),
+        midLabel: '',
         endLabel:
           rangeBounds.endExclusive === null
             ? ''
@@ -523,11 +530,19 @@ export function HistoryScreen(): React.JSX.Element {
       return { key: `tick-${index}-${value}`, value, y };
     });
 
+    const xGuides = [0.25, 0.5, 0.75].map((ratio, index) => ({
+      key: `x-guide-${index}-${ratio}`,
+      x: CHART_PAD_X + ratio * plotWidth
+    }));
+    const midTimestamp = domainStart + Math.floor(timeSpan / 2);
+
     return {
       series,
       maxValue,
       yTicks,
+      xGuides,
       startLabel: formatRangeBoundary(domainStart, selectedRange),
+      midLabel: formatRangeBoundary(midTimestamp, selectedRange),
       endLabel: formatRangeBoundary(domainEndExclusive - 1, selectedRange)
     };
   }, [chartWidth, rangeBounds.endExclusive, rangeBounds.start, selectedRange, trendSamples]);
@@ -825,6 +840,9 @@ export function HistoryScreen(): React.JSX.Element {
                     {chartData.yTicks.map((tick) => (
                       <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />
                     ))}
+                    {chartData.xGuides.map((guide) => (
+                      <View key={guide.key} style={[styles.chartGridLineVertical, { left: guide.x }]} />
+                    ))}
 
                     {chartData.series.map((series) =>
                       series.points.slice(1).map((point, index) =>
@@ -856,15 +874,23 @@ export function HistoryScreen(): React.JSX.Element {
                   </View>
 
                   <View style={styles.chartAxisRow}>
-                    <Text style={styles.axisLabel}>{chartData.startLabel}</Text>
-                    <Text style={styles.axisLabel}>
-                      {selectedRange === 'day' ? t('history.axis.time') : t('history.axis.date')}
+                    <Text style={[styles.axisLabel, styles.axisLabelStart]} numberOfLines={1}>
+                      {chartData.startLabel}
                     </Text>
-                    <Text style={styles.axisLabel}>{chartData.endLabel}</Text>
+                    <Text style={[styles.axisLabel, styles.axisLabelCenter]} numberOfLines={1}>
+                      {chartData.midLabel}
+                    </Text>
+                    <Text style={[styles.axisLabel, styles.axisLabelEnd]} numberOfLines={1}>
+                      {chartData.endLabel}
+                    </Text>
                   </View>
 
                   <Text style={styles.chartMeta}>
-                    {t('history.axis.meta', { max: Math.round(chartData.maxValue) })}
+                    {selectedRange === 'day'
+                      ? t('history.axis.horizontalTime')
+                      : t('history.axis.horizontalDate')}
+                    {' • '}
+                    {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
                   </Text>
                 </>
               )}
@@ -1223,6 +1249,13 @@ function createStyles(colors: AppColors) {
     height: 1,
     backgroundColor: colors.border
   },
+  chartGridLineVertical: {
+    position: 'absolute',
+    top: CHART_PAD_Y,
+    bottom: CHART_PAD_Y,
+    width: 1,
+    backgroundColor: colors.border
+  },
   chartSegment: {
     position: 'absolute',
     height: 2,
@@ -1248,7 +1281,18 @@ function createStyles(colors: AppColors) {
   },
   axisLabel: {
     color: colors.textSecondary,
-    fontSize: 12
+    fontSize: 12,
+    flex: 1
+  },
+  axisLabelStart: {
+    textAlign: 'left'
+  },
+  axisLabelCenter: {
+    textAlign: 'center',
+    paddingHorizontal: 8
+  },
+  axisLabelEnd: {
+    textAlign: 'right'
   },
   chartMeta: {
     color: colors.textSecondary,

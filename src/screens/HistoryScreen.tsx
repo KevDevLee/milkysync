@@ -19,7 +19,7 @@ import {
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
-import { getCurrentIntlLocale } from '@/i18n/locale';
+import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
 import { useI18n } from '@/i18n/useI18n';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
@@ -56,6 +56,7 @@ type ChartGuide = {
   key: string;
   x: number;
   label: string;
+  showLabel: boolean;
 };
 
 type MetricSeries = {
@@ -152,9 +153,11 @@ function formatRangeTitle(range: TrendRange, bounds: RangeBounds): string {
 
 function formatRangeBoundary(timestamp: number, range: TrendRange): string {
   if (range === 'day') {
+    const language = getCurrentLanguage();
     return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
       hour: 'numeric',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: language === 'de' ? false : true
     }).format(new Date(timestamp));
   }
   return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
@@ -534,7 +537,8 @@ export function HistoryScreen(): React.JSX.Element {
     const xGuides = [0.25, 0.5, 0.75].map((ratio, index) => ({
       key: `x-guide-${index}-${ratio}`,
       x: CHART_PAD_X + ratio * plotWidth,
-      label: formatRangeBoundary(domainStart + Math.floor(timeSpan * ratio), selectedRange)
+      label: formatRangeBoundary(domainStart + Math.floor(timeSpan * ratio), selectedRange),
+      showLabel: ratio !== 0.5
     }));
     const midTimestamp = domainStart + Math.floor(timeSpan / 2);
 
@@ -887,7 +891,9 @@ export function HistoryScreen(): React.JSX.Element {
                     </Text>
                   </View>
                   <View style={styles.chartGuideLabelRail}>
-                    {chartData.xGuides.map((guide) => (
+                    {chartData.xGuides
+                      .filter((guide) => guide.showLabel)
+                      .map((guide) => (
                       <Text
                         key={`guide-label-${guide.key}`}
                         style={[styles.chartGuideLabel, { left: guide.x - 34 }]}
@@ -895,7 +901,7 @@ export function HistoryScreen(): React.JSX.Element {
                       >
                         {guide.label}
                       </Text>
-                    ))}
+                      ))}
                   </View>
 
                   <Text style={styles.chartMeta}>

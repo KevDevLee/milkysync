@@ -1,18 +1,22 @@
 import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
 
 export function formatDateTime(timestamp: number): string {
+  const language = getCurrentLanguage();
   return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: language === 'de' ? false : true
   }).format(new Date(timestamp));
 }
 
 export function formatTime(timestamp: number): string {
+  const language = getCurrentLanguage();
   return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: language === 'de' ? false : true
   }).format(new Date(timestamp));
 }
 

@@ -873,7 +873,7 @@ export function HistoryScreen(): React.JSX.Element {
                     )}
 
                     {chartData.yTicks.map((tick) => (
-                      <Text key={tick.key} style={[styles.yAxisLabel, { top: tick.y - 7 }]}>
+                      <Text key={tick.key} style={[styles.yAxisLabel, styles.yAxisLabelVertical, { top: tick.y - 7 }]}>
                         {tick.value}
                       </Text>
                     ))}
@@ -881,7 +881,13 @@ export function HistoryScreen(): React.JSX.Element {
 
                   <View style={styles.chartAxisRail}>
                     <Text
-                      style={[styles.axisLabelAbsolute, styles.axisLabelMajor, styles.axisLabelStart, { left: CHART_PAD_X }]}
+                      style={[
+                        styles.axisLabelAbsolute,
+                        styles.axisLabelMajor,
+                        styles.axisLabelStart,
+                        styles.axisLabelHorizontal,
+                        { left: CHART_PAD_X }
+                      ]}
                       numberOfLines={1}
                     >
                       {chartData.startLabel}
@@ -891,7 +897,12 @@ export function HistoryScreen(): React.JSX.Element {
                       .map((guide) => (
                         <Text
                           key={`guide-label-${guide.key}`}
-                          style={[styles.axisLabelAbsolute, styles.axisLabelMinor, { left: guide.x - 34 }]}
+                          style={[
+                            styles.axisLabelAbsolute,
+                            styles.axisLabelMinor,
+                            styles.axisLabelHorizontal,
+                            { left: guide.x - 34 }
+                          ]}
                           numberOfLines={1}
                         >
                           {guide.label}
@@ -902,6 +913,7 @@ export function HistoryScreen(): React.JSX.Element {
                         styles.axisLabelAbsolute,
                         styles.axisLabelMajor,
                         styles.axisLabelCenter,
+                        styles.axisLabelHorizontal,
                         { left: (chartData.xGuides.find((guide) => guide.key.includes('-0.5'))?.x ?? chartWidth / 2) - 38 }
                       ]}
                       numberOfLines={1}
@@ -913,6 +925,7 @@ export function HistoryScreen(): React.JSX.Element {
                         styles.axisLabelAbsolute,
                         styles.axisLabelMajor,
                         styles.axisLabelEnd,
+                        styles.axisLabelHorizontal,
                         { right: CHART_PAD_X }
                       ]}
                       numberOfLines={1}
@@ -922,10 +935,10 @@ export function HistoryScreen(): React.JSX.Element {
                   </View>
 
                   <View style={styles.chartMetaStack}>
-                    <Text style={styles.chartMeta}>
-                      {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
+                    <Text style={[styles.chartMeta, styles.chartMetaVertical]}>
+                      {t('history.axis.verticalMeta')}
                     </Text>
-                    <Text style={styles.chartMeta}>
+                    <Text style={[styles.chartMeta, styles.chartMetaHorizontal]}>
                       {selectedRange === 'day'
                         ? t('history.axis.horizontalTime')
                         : t('history.axis.horizontalDate')}
@@ -1313,6 +1326,9 @@ function createStyles(colors: AppColors) {
     color: colors.textSecondary,
     backgroundColor: colors.chartSurface
   },
+  yAxisLabelVertical: {
+    color: colors.accent
+  },
   chartAxisRail: {
     position: 'relative',
     height: 18,
@@ -1322,6 +1338,9 @@ function createStyles(colors: AppColors) {
     position: 'absolute',
     color: colors.textSecondary,
     lineHeight: 14
+  },
+  axisLabelHorizontal: {
+    color: colors.primary
   },
   axisLabelMajor: {
     width: 76,
@@ -1346,6 +1365,12 @@ function createStyles(colors: AppColors) {
   chartMeta: {
     color: colors.textSecondary,
     fontSize: 13
+  },
+  chartMetaVertical: {
+    color: colors.accent
+  },
+  chartMetaHorizontal: {
+    color: colors.primary
   },
   chartMetaStack: {
     gap: 2

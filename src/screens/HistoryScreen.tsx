@@ -1173,6 +1173,9 @@ export function HistoryScreen(): React.JSX.Element {
 }
 
 function createStyles(colors: AppColors) {
+  const isLightChartTheme = colors.chartSurface === staticColors.chartSurface;
+  const verticalAxisAccent = isLightChartTheme ? '#9a5a00' : colors.accent;
+
   return StyleSheet.create({
   headerCard: {
     marginBottom: 12,
@@ -1327,7 +1330,7 @@ function createStyles(colors: AppColors) {
     backgroundColor: colors.chartSurface
   },
   yAxisLabelVertical: {
-    color: colors.accent
+    color: verticalAxisAccent
   },
   chartAxisRail: {
     position: 'relative',
@@ -1367,7 +1370,7 @@ function createStyles(colors: AppColors) {
     fontSize: 13
   },
   chartMetaVertical: {
-    color: colors.accent
+    color: verticalAxisAccent
   },
   chartMetaHorizontal: {
     color: colors.primary

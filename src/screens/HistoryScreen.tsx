@@ -879,29 +879,46 @@ export function HistoryScreen(): React.JSX.Element {
                     ))}
                   </View>
 
-                  <View style={styles.chartAxisRow}>
-                    <Text style={[styles.axisLabel, styles.axisLabelStart]} numberOfLines={1}>
+                  <View style={styles.chartAxisRail}>
+                    <Text
+                      style={[styles.axisLabelAbsolute, styles.axisLabelMajor, styles.axisLabelStart, { left: CHART_PAD_X }]}
+                      numberOfLines={1}
+                    >
                       {chartData.startLabel}
                     </Text>
-                    <Text style={[styles.axisLabel, styles.axisLabelCenter]} numberOfLines={1}>
-                      {chartData.midLabel}
-                    </Text>
-                    <Text style={[styles.axisLabel, styles.axisLabelEnd]} numberOfLines={1}>
-                      {chartData.endLabel}
-                    </Text>
-                  </View>
-                  <View style={styles.chartGuideLabelRail}>
                     {chartData.xGuides
                       .filter((guide) => guide.showLabel)
                       .map((guide) => (
-                      <Text
-                        key={`guide-label-${guide.key}`}
-                        style={[styles.chartGuideLabel, { left: guide.x - 34 }]}
-                        numberOfLines={1}
-                      >
-                        {guide.label}
-                      </Text>
+                        <Text
+                          key={`guide-label-${guide.key}`}
+                          style={[styles.axisLabelAbsolute, styles.axisLabelMinor, { left: guide.x - 34 }]}
+                          numberOfLines={1}
+                        >
+                          {guide.label}
+                        </Text>
                       ))}
+                    <Text
+                      style={[
+                        styles.axisLabelAbsolute,
+                        styles.axisLabelMajor,
+                        styles.axisLabelCenter,
+                        { left: (chartData.xGuides.find((guide) => guide.key.includes('-0.5'))?.x ?? chartWidth / 2) - 38 }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {chartData.midLabel}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.axisLabelAbsolute,
+                        styles.axisLabelMajor,
+                        styles.axisLabelEnd,
+                        { right: CHART_PAD_X }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {chartData.endLabel}
+                    </Text>
                   </View>
 
                   <Text style={styles.chartMeta}>
@@ -1293,37 +1310,35 @@ function createStyles(colors: AppColors) {
     color: colors.textSecondary,
     backgroundColor: colors.chartSurface
   },
-  chartAxisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  chartGuideLabelRail: {
+  chartAxisRail: {
     position: 'relative',
-    height: 16,
+    height: 18,
     marginTop: 2
   },
-  chartGuideLabel: {
+  axisLabelAbsolute: {
     position: 'absolute',
+    color: colors.textSecondary,
+    lineHeight: 14
+  },
+  axisLabelMajor: {
+    width: 76,
+    fontSize: 12
+  },
+  axisLabelMinor: {
     width: 68,
-    textAlign: 'center',
-    color: colors.textSecondary,
-    fontSize: 10
-  },
-  axisLabel: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    flex: 1
-  },
-  axisLabelStart: {
-    textAlign: 'left'
+    fontSize: 10,
+    textAlign: 'center'
   },
   axisLabelCenter: {
     textAlign: 'center',
-    paddingHorizontal: 8
+    width: 76
   },
   axisLabelEnd: {
-    textAlign: 'right'
+    textAlign: 'right',
+    width: 76
+  },
+  axisLabelStart: {
+    textAlign: 'left'
   },
   chartMeta: {
     color: colors.textSecondary,

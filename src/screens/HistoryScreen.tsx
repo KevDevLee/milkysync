@@ -514,7 +514,7 @@ export function HistoryScreen(): React.JSX.Element {
       const points = trendSamples.map((sample, index) => {
         const value = getMetricValueFromSample(sample, metric.key);
         const x =
-          trendSamples.length === 1
+          trendSamples.length === 1 && selectedRange === 'all'
             ? CHART_PAD_X + plotWidth / 2
             : CHART_PAD_X + ((sample.timestamp - domainStart) / timeSpan) * plotWidth;
         const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
@@ -921,13 +921,16 @@ export function HistoryScreen(): React.JSX.Element {
                     </Text>
                   </View>
 
-                  <Text style={styles.chartMeta}>
-                    {selectedRange === 'day'
-                      ? t('history.axis.horizontalTime')
-                      : t('history.axis.horizontalDate')}
-                    {' • '}
-                    {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
-                  </Text>
+                  <View style={styles.chartMetaStack}>
+                    <Text style={styles.chartMeta}>
+                      {selectedRange === 'day'
+                        ? t('history.axis.horizontalTime')
+                        : t('history.axis.horizontalDate')}
+                    </Text>
+                    <Text style={styles.chartMeta}>
+                      {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
+                    </Text>
+                  </View>
                 </>
               )}
             </AppCard>
@@ -1343,6 +1346,9 @@ function createStyles(colors: AppColors) {
   chartMeta: {
     color: colors.textSecondary,
     fontSize: 13
+  },
+  chartMetaStack: {
+    gap: 2
   },
   listHeading: {
     color: colors.textPrimary,

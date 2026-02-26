@@ -923,12 +923,12 @@ export function HistoryScreen(): React.JSX.Element {
 
                   <View style={styles.chartMetaStack}>
                     <Text style={styles.chartMeta}>
+                      {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
+                    </Text>
+                    <Text style={styles.chartMeta}>
                       {selectedRange === 'day'
                         ? t('history.axis.horizontalTime')
                         : t('history.axis.horizontalDate')}
-                    </Text>
-                    <Text style={styles.chartMeta}>
-                      {t('history.axis.verticalMeta', { max: Math.round(chartData.maxValue) })}
                     </Text>
                   </View>
                 </>

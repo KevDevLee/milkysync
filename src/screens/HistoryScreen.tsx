@@ -1329,7 +1329,7 @@ function createStyles(colors: AppColors) {
   },
   axisLabelMinor: {
     width: 68,
-    fontSize: 10,
+    fontSize: 12,
     textAlign: 'center'
   },
   axisLabelCenter: {

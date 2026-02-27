@@ -21,12 +21,13 @@ import {
 
 import { AppCard } from '@/components/AppCard';
 import { Screen } from '@/components/Screen';
+import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
 import { useI18n } from '@/i18n/useI18n';
 import { useAppPreferences } from '@/services/preferences/AppPreferencesContext';
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
-import { formatDateTime, formatRelativeDuration } from '@/utils/date';
+import { formatDateTime, formatRelativeDuration, formatTime } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
 
 const MIN_SELECTABLE_MINUTES = 1;
@@ -44,6 +45,7 @@ const DEFAULT_TIMER_MINUTES = 15;
 const LAST_TIMER_MINUTES_STORAGE_KEY = '@milkysync:last_timer_minutes';
 const START_SESSION_DRAFT_STORAGE_KEY = '@milkysync:start_session_draft';
 const ML_STEPPER_QUICK_DELTAS = [-10, -5, 5, 10] as const;
+type AndroidPickerMode = 'date' | 'time' | null;
 
 export function AddSessionScreen(): React.JSX.Element {
   const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
@@ -59,6 +61,7 @@ export function AddSessionScreen(): React.JSX.Element {
   const [note, setNote] = useState('');
   const [noteExpanded, setNoteExpanded] = useState(false);
   const [timestamp, setTimestamp] = useState(new Date());
+  const [androidPickerMode, setAndroidPickerMode] = useState<AndroidPickerMode>(null);
   const [saving, setSaving] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
 
@@ -401,6 +404,16 @@ export function AddSessionScreen(): React.JSX.Element {
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
+  const sessionDateLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat(getCurrentIntlLocale(), {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(timestamp),
+    [timestamp]
+  );
+  const sessionTimeLabel = useMemo(() => formatTime(timestamp.getTime()), [timestamp]);
   const hasPartialCountdown = remainingSeconds !== targetDurationSeconds;
   const wheelMinuteValue = timerRunning || hasPartialCountdown ? displayMinutes : selectedMinutes;
   const minuteWheelItems = useMemo(
@@ -614,6 +627,35 @@ export function AddSessionScreen(): React.JSX.Element {
       setRefreshing(false);
     }
   }, [refresh]);
+
+  const updateTimestampDatePart = (nextDate: Date): void => {
+    setTimestamp((previous) => {
+      const merged = new Date(previous);
+      merged.setFullYear(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+      return merged;
+    });
+  };
+
+  const updateTimestampTimePart = (nextTime: Date): void => {
+    setTimestamp((previous) => {
+      const merged = new Date(previous);
+      merged.setHours(nextTime.getHours(), nextTime.getMinutes(), 0, 0);
+      return merged;
+    });
+  };
+
+  const onAndroidDateTimeChange = (_: unknown, nextValue?: Date): void => {
+    const mode = androidPickerMode;
+    setAndroidPickerMode(null);
+    if (!nextValue || !mode) {
+      return;
+    }
+    if (mode === 'date') {
+      updateTimestampDatePart(nextValue);
+      return;
+    }
+    updateTimestampTimePart(nextValue);
+  };
 
   return (
     <Screen>
@@ -917,29 +959,35 @@ export function AddSessionScreen(): React.JSX.Element {
         ) : (
           <View style={styles.row}>
             <View style={styles.fieldHalf}>
-              <DateTimePicker
-                value={timestamp}
-                mode="date"
-                onChange={(_, nextValue) => {
-                  if (nextValue) {
-                    setTimestamp(nextValue);
-                  }
-                }}
-              />
+              <Pressable
+                onPress={() => setAndroidPickerMode('date')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.androidDateTimeButton, pressed && styles.timerPressed]}
+              >
+                <Text style={styles.androidDateTimeButtonLabel}>{t('start.dateLabel')}</Text>
+                <Text style={styles.androidDateTimeButtonValue}>{sessionDateLabel}</Text>
+              </Pressable>
             </View>
             <View style={styles.fieldHalf}>
-              <DateTimePicker
-                value={timestamp}
-                mode="time"
-                onChange={(_, nextValue) => {
-                  if (nextValue) {
-                    setTimestamp(nextValue);
-                  }
-                }}
-              />
+              <Pressable
+                onPress={() => setAndroidPickerMode('time')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.androidDateTimeButton, pressed && styles.timerPressed]}
+              >
+                <Text style={styles.androidDateTimeButtonLabel}>{t('start.timeLabel')}</Text>
+                <Text style={styles.androidDateTimeButtonValue}>{sessionTimeLabel}</Text>
+              </Pressable>
             </View>
           </View>
         )}
+        {Platform.OS === 'android' && androidPickerMode ? (
+          <DateTimePicker
+            value={timestamp}
+            mode={androidPickerMode}
+            is24Hour={getCurrentLanguage() === 'de'}
+            onChange={onAndroidDateTimeChange}
+          />
+        ) : null}
 
         <View style={styles.noteSection}>
           <Pressable
@@ -1325,6 +1373,28 @@ function createStyles(colors: AppColors) {
     fontSize: 13,
     fontWeight: '700',
     color: colors.primary
+  },
+  androidDateTimeButton: {
+    minHeight: 58,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 2
+  },
+  androidDateTimeButtonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4
+  },
+  androidDateTimeButtonValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary
   },
   input: {
     minHeight: 50,

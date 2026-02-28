@@ -378,6 +378,7 @@ export function HistoryScreen(): React.JSX.Element {
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
+  const selectedSampleIdRef = useRef<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editLeftMlInput, setEditLeftMlInput] = useState('0');
@@ -406,6 +407,10 @@ export function HistoryScreen(): React.JSX.Element {
   useEffect(() => {
     setSelectedSampleId(null);
   }, [periodOffset, selectedRange]);
+
+  useEffect(() => {
+    selectedSampleIdRef.current = selectedSampleId;
+  }, [selectedSampleId]);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -644,9 +649,10 @@ export function HistoryScreen(): React.JSX.Element {
       return;
     }
 
-    if (selectedSampleId) {
+    const currentSelectedSampleId = selectedSampleIdRef.current;
+    if (currentSelectedSampleId) {
       const currentIndex = chartData.interactivePoints.findIndex(
-        (point) => point.sampleId === selectedSampleId
+        (point) => point.sampleId === currentSelectedSampleId
       );
       if (currentIndex >= 0) {
         const nextPoint =

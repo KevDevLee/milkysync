@@ -949,6 +949,16 @@ export function HistoryScreen(): React.JSX.Element {
                     {chartData.xGuides.map((guide) => (
                       <View key={guide.key} style={[styles.chartGridLineVertical, { left: guide.x }]} />
                     ))}
+                    {selectedInteractivePoint ? (
+                      <View
+                        style={[
+                          styles.chartSelectionLine,
+                          {
+                            left: selectedInteractivePoint.x
+                          }
+                        ]}
+                      />
+                    ) : null}
 
                     {chartData.series.map((series) =>
                       series.points.slice(1).map((point, index) =>
@@ -1323,6 +1333,7 @@ export function HistoryScreen(): React.JSX.Element {
 function createStyles(colors: AppColors) {
   const isLightChartTheme = colors.chartSurface === staticColors.chartSurface;
   const verticalAxisAccent = isLightChartTheme ? '#9a5a00' : colors.accent;
+  const chartSelectionLineColor = isLightChartTheme ? '#1a1a1a' : '#e3ece9';
 
   return StyleSheet.create({
   headerCard: {
@@ -1458,6 +1469,13 @@ function createStyles(colors: AppColors) {
     bottom: CHART_PAD_Y,
     width: 1,
     backgroundColor: colors.border
+  },
+  chartSelectionLine: {
+    position: 'absolute',
+    top: CHART_PAD_Y,
+    bottom: CHART_PAD_Y,
+    width: 2,
+    backgroundColor: chartSelectionLineColor
   },
   chartSegment: {
     position: 'absolute',

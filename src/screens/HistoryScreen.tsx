@@ -644,6 +644,18 @@ export function HistoryScreen(): React.JSX.Element {
       return;
     }
 
+    if (selectedSampleId) {
+      const currentIndex = chartData.interactivePoints.findIndex(
+        (point) => point.sampleId === selectedSampleId
+      );
+      if (currentIndex >= 0) {
+        const nextPoint =
+          chartData.interactivePoints[(currentIndex + 1) % chartData.interactivePoints.length];
+        setSelectedSampleId(nextPoint.sampleId);
+        return;
+      }
+    }
+
     const nearest = chartData.interactivePoints.reduce((currentNearest, candidate) => {
       if (!currentNearest) {
         return candidate;

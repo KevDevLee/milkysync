@@ -40,6 +40,7 @@ type RangeBounds = {
 
 type ChartPoint = {
   id: string;
+  sampleId: string;
   x: number;
   y: number;
   value: number;
@@ -57,6 +58,17 @@ type ChartGuide = {
   x: number;
   label: string;
   showLabel: boolean;
+};
+
+type ChartInteractivePoint = {
+  sampleId: string;
+  timestamp: number;
+  x: number;
+  anchorY: number;
+  leftMl: number;
+  rightMl: number;
+  totalMl: number;
+  label: string;
 };
 
 type MetricSeries = {
@@ -164,6 +176,18 @@ function formatRangeBoundary(timestamp: number, range: TrendRange): string {
     month: 'short',
     day: 'numeric'
   }).format(new Date(timestamp));
+}
+
+function formatTooltipLabel(timestamp: number, range: TrendRange): string {
+  if (range === 'week' || range === 'month') {
+    return new Intl.DateTimeFormat(getCurrentIntlLocale(), {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    }).format(new Date(timestamp));
+  }
+
+  return formatDateTime(timestamp);
 }
 
 function getRangeBounds(range: TrendRange, now: number, periodOffset: number): RangeBounds {
@@ -351,6 +375,7 @@ export function HistoryScreen(): React.JSX.Element {
   const [sortBy, setSortBy] = useState<SessionSort>('newest');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
+  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editLeftMlInput, setEditLeftMlInput] = useState('0');
@@ -375,6 +400,10 @@ export function HistoryScreen(): React.JSX.Element {
 
     return () => clearTimeout(timer);
   }, [historyFeedback]);
+
+  useEffect(() => {
+    setSelectedSampleId(null);
+  }, [periodOffset, selectedRange]);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -476,6 +505,7 @@ export function HistoryScreen(): React.JSX.Element {
     if (trendSamples.length === 0) {
       return {
         series: METRIC_DEFS.map((metric) => ({ ...metric, points: [] as ChartPoint[] })),
+        interactivePoints: [] as ChartInteractivePoint[],
         maxValue: 0,
         yTicks: [] as ChartTick[],
         xGuides: [] as ChartGuide[],
@@ -520,6 +550,7 @@ export function HistoryScreen(): React.JSX.Element {
         const y = CHART_PAD_Y + (1 - value / axisMax) * plotHeight;
         return {
           id: `${metric.key}-${sample.id}-${index}`,
+          sampleId: sample.id,
           x,
           y,
           value,
@@ -540,10 +571,31 @@ export function HistoryScreen(): React.JSX.Element {
       label: formatRangeBoundary(domainStart + Math.floor(timeSpan * ratio), selectedRange),
       showLabel: ratio !== 0.5
     }));
+    const interactivePoints: ChartInteractivePoint[] = trendSamples.map((sample) => {
+      const x =
+        trendSamples.length === 1 && selectedRange === 'all'
+          ? CHART_PAD_X + plotWidth / 2
+          : CHART_PAD_X + ((sample.timestamp - domainStart) / timeSpan) * plotWidth;
+      const leftY = CHART_PAD_Y + (1 - sample.leftMl / axisMax) * plotHeight;
+      const rightY = CHART_PAD_Y + (1 - sample.rightMl / axisMax) * plotHeight;
+      const totalY = CHART_PAD_Y + (1 - sample.totalMl / axisMax) * plotHeight;
+
+      return {
+        sampleId: sample.id,
+        timestamp: sample.timestamp,
+        x,
+        anchorY: Math.min(leftY, rightY, totalY),
+        leftMl: sample.leftMl,
+        rightMl: sample.rightMl,
+        totalMl: sample.totalMl,
+        label: formatTooltipLabel(sample.timestamp, selectedRange)
+      };
+    });
     const midTimestamp = domainStart + Math.floor(timeSpan / 2);
 
     return {
       series,
+      interactivePoints,
       maxValue,
       yTicks,
       xGuides,
@@ -558,6 +610,34 @@ export function HistoryScreen(): React.JSX.Element {
     if (nextWidth !== chartWidth) {
       setChartWidth(nextWidth);
     }
+  };
+
+  const selectedInteractivePoint = useMemo(
+    () => chartData.interactivePoints.find((point) => point.sampleId === selectedSampleId) ?? null,
+    [chartData.interactivePoints, selectedSampleId]
+  );
+
+  useEffect(() => {
+    if (selectedSampleId && !selectedInteractivePoint) {
+      setSelectedSampleId(null);
+    }
+  }, [selectedInteractivePoint, selectedSampleId]);
+
+  const onChartFramePress = (touchX: number): void => {
+    if (chartData.interactivePoints.length === 0) {
+      return;
+    }
+
+    const nearest = chartData.interactivePoints.reduce((currentNearest, candidate) => {
+      if (!currentNearest) {
+        return candidate;
+      }
+      const currentDistance = Math.abs(currentNearest.x - touchX);
+      const candidateDistance = Math.abs(candidate.x - touchX);
+      return candidateDistance < currentDistance ? candidate : currentNearest;
+    }, chartData.interactivePoints[0]);
+
+    setSelectedSampleId((current) => (current === nearest.sampleId ? null : nearest.sampleId));
   };
 
   const renderSegment = (from: ChartPoint, to: ChartPoint, color: string, key: string): React.JSX.Element => {
@@ -842,7 +922,11 @@ export function HistoryScreen(): React.JSX.Element {
                 <Text style={styles.chartEmpty}>{t('history.noSessionsTimeframe')}</Text>
               ) : (
                 <>
-                  <View style={styles.chartFrame} onLayout={onChartLayout}>
+                  <Pressable
+                    style={styles.chartFrame}
+                    onLayout={onChartLayout}
+                    onPress={(event) => onChartFramePress(event.nativeEvent.locationX)}
+                  >
                     {chartData.yTicks.map((tick) => (
                       <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />
                     ))}
@@ -861,14 +945,22 @@ export function HistoryScreen(): React.JSX.Element {
                         <View
                           key={`dot-${point.id}`}
                           style={[
-                            styles.chartDot,
+                            styles.chartDotPressable,
                             {
-                              backgroundColor: series.color,
-                              left: point.x - 3.5,
-                              top: point.y - 3.5
+                              left: point.x - 10,
+                              top: point.y - 10
                             }
                           ]}
-                        />
+                        >
+                          <View
+                            style={[
+                              styles.chartDot,
+                              {
+                                backgroundColor: series.color
+                              }
+                            ]}
+                          />
+                        </View>
                       ))
                     )}
 
@@ -877,7 +969,32 @@ export function HistoryScreen(): React.JSX.Element {
                         {tick.value}
                       </Text>
                     ))}
-                  </View>
+                    {selectedInteractivePoint ? (
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          styles.chartTooltip,
+                          {
+                            left: Math.min(Math.max(selectedInteractivePoint.x - 70, CHART_PAD_X), Math.max(chartWidth - CHART_PAD_X - 140, CHART_PAD_X)),
+                            top: Math.max(selectedInteractivePoint.anchorY - 86, CHART_PAD_Y + 2)
+                          }
+                        ]}
+                      >
+                        <Text style={styles.chartTooltipTitle} numberOfLines={1}>
+                          {selectedInteractivePoint.label}
+                        </Text>
+                        <Text style={styles.chartTooltipText}>
+                          {t('history.metric.left')}: {selectedInteractivePoint.leftMl} ml
+                        </Text>
+                        <Text style={styles.chartTooltipText}>
+                          {t('history.metric.right')}: {selectedInteractivePoint.rightMl} ml
+                        </Text>
+                        <Text style={[styles.chartTooltipText, styles.chartTooltipTotalText]}>
+                          {t('history.metric.total')}: {selectedInteractivePoint.totalMl} ml
+                        </Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
 
                   <View style={styles.chartAxisRail}>
                     <Text
@@ -1317,10 +1434,41 @@ function createStyles(colors: AppColors) {
     borderRadius: 1
   },
   chartDot: {
-    position: 'absolute',
     width: 7,
     height: 7,
     borderRadius: 3.5
+  },
+  chartDotPressable: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  chartTooltip: {
+    position: 'absolute',
+    width: 140,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 1
+  },
+  chartTooltipTitle: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2
+  },
+  chartTooltipText: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  chartTooltipTotalText: {
+    color: colors.textPrimary
   },
   yAxisLabel: {
     position: 'absolute',

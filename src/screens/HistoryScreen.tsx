@@ -379,6 +379,7 @@ export function HistoryScreen(): React.JSX.Element {
   const [chartWidth, setChartWidth] = useState(0);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
   const selectedSampleIdRef = useRef<string | null>(null);
+  const chartTouchInProgressRef = useRef(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editLeftMlInput, setEditLeftMlInput] = useState('0');
@@ -874,6 +875,9 @@ export function HistoryScreen(): React.JSX.Element {
         data={listSessions}
         keyExtractor={(item) => item.id}
         onTouchStart={() => {
+          if (chartTouchInProgressRef.current) {
+            return;
+          }
           if (selectedSampleId) {
             setSelectedSampleId(null);
           }
@@ -964,7 +968,16 @@ export function HistoryScreen(): React.JSX.Element {
                   <Pressable
                     style={styles.chartFrame}
                     onLayout={onChartLayout}
-                    onPress={(event) => onChartFramePress(event.nativeEvent.locationX)}
+                    onTouchStart={() => {
+                      chartTouchInProgressRef.current = true;
+                    }}
+                    onTouchEnd={() => {
+                      chartTouchInProgressRef.current = false;
+                    }}
+                    onTouchCancel={() => {
+                      chartTouchInProgressRef.current = false;
+                    }}
+                    onPressIn={(event) => onChartFramePress(event.nativeEvent.locationX)}
                   >
                     {chartData.yTicks.map((tick) => (
                       <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />

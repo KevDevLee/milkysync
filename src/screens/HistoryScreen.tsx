@@ -65,6 +65,7 @@ type ChartInteractivePoint = {
   timestamp: number;
   x: number;
   anchorY: number;
+  dotYs: number[];
   leftMl: number;
   rightMl: number;
   totalMl: number;
@@ -111,6 +112,7 @@ const CHART_PAD_X = 16;
 const CHART_PAD_Y = 14;
 const CHART_TOOLTIP_WIDTH = 140;
 const CHART_TOOLTIP_POINTER_SIZE = 7;
+const CHART_POINT_HIT_RADIUS = 26;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SWIPE_ACTION_WIDTH = 88;
 const SWIPE_ACTION_TOTAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
@@ -593,6 +595,7 @@ export function HistoryScreen(): React.JSX.Element {
         timestamp: sample.timestamp,
         x,
         anchorY: Math.min(leftY, rightY, totalY),
+        dotYs: [leftY, rightY, totalY],
         leftMl: sample.leftMl,
         rightMl: sample.rightMl,
         totalMl: sample.totalMl,
@@ -645,8 +648,32 @@ export function HistoryScreen(): React.JSX.Element {
     }
   }, [selectedInteractivePoint, selectedSampleId]);
 
-  const onChartFramePress = (touchX: number): void => {
+  const onChartFramePress = (touchX: number, touchY: number): void => {
     if (chartData.interactivePoints.length === 0) {
+      return;
+    }
+
+    const nearestPointByDistance = chartData.interactivePoints.reduce(
+      (currentNearest, candidate) => {
+        const candidateDistance = Math.min(
+          ...candidate.dotYs.map((dotY) => {
+            const dx = candidate.x - touchX;
+            const dy = dotY - touchY;
+            return Math.sqrt(dx * dx + dy * dy);
+          })
+        );
+
+        if (!currentNearest || candidateDistance < currentNearest.distance) {
+          return { point: candidate, distance: candidateDistance };
+        }
+
+        return currentNearest;
+      },
+      null as { point: ChartInteractivePoint; distance: number } | null
+    );
+
+    if (nearestPointByDistance && nearestPointByDistance.distance <= CHART_POINT_HIT_RADIUS) {
+      setSelectedSampleId(nearestPointByDistance.point.sampleId);
       return;
     }
 
@@ -977,7 +1004,9 @@ export function HistoryScreen(): React.JSX.Element {
                     onTouchCancel={() => {
                       chartTouchInProgressRef.current = false;
                     }}
-                    onPressIn={(event) => onChartFramePress(event.nativeEvent.locationX)}
+                    onPressIn={(event) =>
+                      onChartFramePress(event.nativeEvent.locationX, event.nativeEvent.locationY)
+                    }
                   >
                     {chartData.yTicks.map((tick) => (
                       <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />

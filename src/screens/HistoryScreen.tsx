@@ -653,7 +653,7 @@ export function HistoryScreen(): React.JSX.Element {
       return candidateDistance < currentDistance ? candidate : currentNearest;
     }, chartData.interactivePoints[0]);
 
-    setSelectedSampleId((current) => (current === nearest.sampleId ? null : nearest.sampleId));
+    setSelectedSampleId(nearest.sampleId);
   };
 
   const renderSegment = (from: ChartPoint, to: ChartPoint, color: string, key: string): React.JSX.Element => {
@@ -855,6 +855,11 @@ export function HistoryScreen(): React.JSX.Element {
       <FlatList
         data={listSessions}
         keyExtractor={(item) => item.id}
+        onTouchStart={() => {
+          if (selectedSampleId) {
+            setSelectedSampleId(null);
+          }
+        }}
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         ListHeaderComponent={

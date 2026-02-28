@@ -659,24 +659,10 @@ export function AddSessionScreen(): React.JSX.Element {
 
   return (
     <Screen>
-      <View style={styles.brandHeaderRow}>
-        <View style={styles.brandWordmarkRow}>
-          <Text
-            style={[
-              styles.brandWordmarkText,
-              brandFontLoaded && styles.brandWordmarkTextInter,
-              styles.brandWordmarkInvertedU
-            ]}
-          >
-            U
-          </Text>
-          <Text style={[styles.brandWordmarkText, brandFontLoaded && styles.brandWordmarkTextInter]}>URA</Text>
-        </View>
-      </View>
-
       <ScrollView
         style={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        overScrollMode="always"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -684,11 +670,30 @@ export function AddSessionScreen(): React.JSX.Element {
               void onRefreshStartScreen();
             }}
             tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressViewOffset={8}
           />
         }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.brandHeaderRow}>
+          <View style={styles.brandWordmarkRow}>
+            <Text
+              style={[
+                styles.brandWordmarkText,
+                brandFontLoaded && styles.brandWordmarkTextInter,
+                styles.brandWordmarkInvertedU
+              ]}
+            >
+              U
+            </Text>
+            <Text style={[styles.brandWordmarkText, brandFontLoaded && styles.brandWordmarkTextInter]}>
+              URA
+            </Text>
+          </View>
+        </View>
+
         <AppCard style={styles.lastSessionCard}>
           <View style={styles.topStatsRow}>
             <View style={styles.topStatColumn}>

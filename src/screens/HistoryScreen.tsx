@@ -1012,7 +1012,16 @@ export function HistoryScreen(): React.JSX.Element {
                           </Text>
                         </View>
                         <View
-                          style={[styles.chartTooltipPointer, { left: selectedTooltipPlacement.pointerLeft }]}
+                          style={[
+                            styles.chartTooltipPointerBorder,
+                            { left: selectedTooltipPlacement.pointerLeft - 1 }
+                          ]}
+                        />
+                        <View
+                          style={[
+                            styles.chartTooltipPointerFill,
+                            { left: selectedTooltipPlacement.pointerLeft }
+                          ]}
                         />
                       </View>
                     ) : null}
@@ -1500,9 +1509,22 @@ function createStyles(colors: AppColors) {
   chartTooltipTotalText: {
     color: colors.textPrimary
   },
-  chartTooltipPointer: {
+  chartTooltipPointerBorder: {
     position: 'absolute',
     top: '100%',
+    width: 0,
+    height: 0,
+    borderLeftWidth: CHART_TOOLTIP_POINTER_SIZE + 1,
+    borderRightWidth: CHART_TOOLTIP_POINTER_SIZE + 1,
+    borderTopWidth: CHART_TOOLTIP_POINTER_SIZE + 2,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: colors.border
+  },
+  chartTooltipPointerFill: {
+    position: 'absolute',
+    top: '100%',
+    marginTop: -1,
     width: 0,
     height: 0,
     borderLeftWidth: CHART_TOOLTIP_POINTER_SIZE,

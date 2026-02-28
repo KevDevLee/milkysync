@@ -109,6 +109,8 @@ const METRIC_DEFS: Array<{ key: TrendMetric; label: string; color: string }> = [
 const CHART_HEIGHT = 220;
 const CHART_PAD_X = 16;
 const CHART_PAD_Y = 14;
+const CHART_TOOLTIP_WIDTH = 140;
+const CHART_TOOLTIP_POINTER_SIZE = 7;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SWIPE_ACTION_WIDTH = 88;
 const SWIPE_ACTION_TOTAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
@@ -616,6 +618,20 @@ export function HistoryScreen(): React.JSX.Element {
     () => chartData.interactivePoints.find((point) => point.sampleId === selectedSampleId) ?? null,
     [chartData.interactivePoints, selectedSampleId]
   );
+  const selectedTooltipPlacement = useMemo(() => {
+    if (!selectedInteractivePoint) {
+      return null;
+    }
+    const maxLeft = Math.max(chartWidth - CHART_PAD_X - CHART_TOOLTIP_WIDTH, CHART_PAD_X);
+    const left = Math.min(Math.max(selectedInteractivePoint.x - CHART_TOOLTIP_WIDTH / 2, CHART_PAD_X), maxLeft);
+    const top = Math.max(selectedInteractivePoint.anchorY - 94, CHART_PAD_Y + 2);
+    const pointerLeft = Math.min(
+      Math.max(selectedInteractivePoint.x - left - CHART_TOOLTIP_POINTER_SIZE, 10),
+      CHART_TOOLTIP_WIDTH - 10 - CHART_TOOLTIP_POINTER_SIZE * 2
+    );
+
+    return { left, top, pointerLeft };
+  }, [chartWidth, selectedInteractivePoint]);
 
   useEffect(() => {
     if (selectedSampleId && !selectedInteractivePoint) {
@@ -955,6 +971,7 @@ export function HistoryScreen(): React.JSX.Element {
                           <View
                             style={[
                               styles.chartDot,
+                              point.sampleId === selectedSampleId && styles.chartDotSelected,
                               {
                                 backgroundColor: series.color
                               }
@@ -969,29 +986,34 @@ export function HistoryScreen(): React.JSX.Element {
                         {tick.value}
                       </Text>
                     ))}
-                    {selectedInteractivePoint ? (
+                    {selectedInteractivePoint && selectedTooltipPlacement ? (
                       <View
                         pointerEvents="none"
                         style={[
-                          styles.chartTooltip,
+                          styles.chartTooltipWrap,
                           {
-                            left: Math.min(Math.max(selectedInteractivePoint.x - 70, CHART_PAD_X), Math.max(chartWidth - CHART_PAD_X - 140, CHART_PAD_X)),
-                            top: Math.max(selectedInteractivePoint.anchorY - 86, CHART_PAD_Y + 2)
+                            left: selectedTooltipPlacement.left,
+                            top: selectedTooltipPlacement.top
                           }
                         ]}
                       >
-                        <Text style={styles.chartTooltipTitle} numberOfLines={1}>
-                          {selectedInteractivePoint.label}
-                        </Text>
-                        <Text style={styles.chartTooltipText}>
-                          {t('history.metric.left')}: {selectedInteractivePoint.leftMl} ml
-                        </Text>
-                        <Text style={styles.chartTooltipText}>
-                          {t('history.metric.right')}: {selectedInteractivePoint.rightMl} ml
-                        </Text>
-                        <Text style={[styles.chartTooltipText, styles.chartTooltipTotalText]}>
-                          {t('history.metric.total')}: {selectedInteractivePoint.totalMl} ml
-                        </Text>
+                        <View style={styles.chartTooltip}>
+                          <Text style={styles.chartTooltipTitle} numberOfLines={1}>
+                            {selectedInteractivePoint.label}
+                          </Text>
+                          <Text style={styles.chartTooltipText}>
+                            {t('history.metric.left')}: {selectedInteractivePoint.leftMl} ml
+                          </Text>
+                          <Text style={styles.chartTooltipText}>
+                            {t('history.metric.right')}: {selectedInteractivePoint.rightMl} ml
+                          </Text>
+                          <Text style={[styles.chartTooltipText, styles.chartTooltipTotalText]}>
+                            {t('history.metric.total')}: {selectedInteractivePoint.totalMl} ml
+                          </Text>
+                        </View>
+                        <View
+                          style={[styles.chartTooltipPointer, { left: selectedTooltipPlacement.pointerLeft }]}
+                        />
                       </View>
                     ) : null}
                   </Pressable>
@@ -1438,6 +1460,11 @@ function createStyles(colors: AppColors) {
     height: 7,
     borderRadius: 3.5
   },
+  chartDotSelected: {
+    transform: [{ scale: 1.22 }],
+    borderWidth: 1,
+    borderColor: colors.surface
+  },
   chartDotPressable: {
     position: 'absolute',
     width: 20,
@@ -1445,9 +1472,12 @@ function createStyles(colors: AppColors) {
     alignItems: 'center',
     justifyContent: 'center'
   },
-  chartTooltip: {
+  chartTooltipWrap: {
     position: 'absolute',
-    width: 140,
+    width: CHART_TOOLTIP_WIDTH
+  },
+  chartTooltip: {
+    width: CHART_TOOLTIP_WIDTH,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1469,6 +1499,18 @@ function createStyles(colors: AppColors) {
   },
   chartTooltipTotalText: {
     color: colors.textPrimary
+  },
+  chartTooltipPointer: {
+    position: 'absolute',
+    top: '100%',
+    width: 0,
+    height: 0,
+    borderLeftWidth: CHART_TOOLTIP_POINTER_SIZE,
+    borderRightWidth: CHART_TOOLTIP_POINTER_SIZE,
+    borderTopWidth: CHART_TOOLTIP_POINTER_SIZE + 1,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: colors.surface
   },
   yAxisLabel: {
     position: 'absolute',

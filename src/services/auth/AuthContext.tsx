@@ -174,7 +174,7 @@ export function AuthProvider({ children }: PropsWithChildren): React.JSX.Element
     setLoading(true);
     refreshProfile()
       .catch((error: unknown) => {
-        console.error(error);
+        console.warn('Failed to refresh profile.', error);
         setAuthError(error instanceof Error ? error.message : 'Could not load profile');
       })
       .finally(() => {

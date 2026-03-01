@@ -67,6 +67,32 @@ npx expo prebuild
 npx expo run:ios
 ```
 
+### iPhone via Xcode (without Expo Go, free Apple ID)
+
+Use this when you want to install directly on your own iPhone over cable.
+
+1. Connect iPhone to Mac with cable, unlock phone, trust computer.
+2. Generate iOS project:
+   ```bash
+   npx expo prebuild --platform ios
+   npx pod-install ios
+   open ios/MilkySync.xcworkspace
+   ```
+3. In Xcode (`TARGETS > MilkySync > Signing & Capabilities`):
+   - enable `Automatically manage signing`
+   - select your `Personal Team`
+   - keep bundle id unique (example: `com.kevinlee.milkysync.dev`)
+4. Select your iPhone as run target and press `Run`.
+
+Important for free Apple ID:
+- Personal Team cannot sign `Push Notifications` capability.
+- If signing fails, remove `Push Notifications` in Xcode and disable `Remote notifications` under `Background Modes`.
+- Local notifications still work.
+
+Notes:
+- Free signing profiles expire after ~7 days; rebuild/install again when needed.
+- This path is for personal testing, not public distribution.
+
 ### Android Dev Build
 
 ```bash
@@ -142,7 +168,10 @@ npx expo run:android
 ```bash
 npm run lint
 npm run test
+npm run assets:check
 ```
+
+`npm run assets:check` validates PNG integrity (CRC), required files, and common size rules before device builds.
 
 Current unit tests cover:
 - totals/amount logic

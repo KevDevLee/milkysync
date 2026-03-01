@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import { Screen } from '@/components/Screen';
 import { StateMessage } from '@/components/StateMessage';
 import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
@@ -25,7 +26,7 @@ import { useAppPreferences } from '@/services/preferences/AppPreferencesContext'
 import { useAppData } from '@/state/AppDataContext';
 import { AppColors, useAppColors, colors as staticColors } from '@/theme/colors';
 import { reportError } from '@/utils/error';
-import { formatDateTime, startOfLocalDay } from '@/utils/date';
+import { formatDateTime, formatRelativeDuration, startOfLocalDay } from '@/utils/date';
 import { clampMl } from '@/utils/pump';
 import { formatPumpDuration } from '@/utils/timer';
 
@@ -65,7 +66,6 @@ type ChartInteractivePoint = {
   timestamp: number;
   x: number;
   anchorY: number;
-  dotYs: number[];
   leftMl: number;
   rightMl: number;
   totalMl: number;
@@ -112,7 +112,6 @@ const CHART_PAD_X = 16;
 const CHART_PAD_Y = 14;
 const CHART_TOOLTIP_WIDTH = 140;
 const CHART_TOOLTIP_POINTER_SIZE = 7;
-const CHART_POINT_HIT_RADIUS = 26;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SWIPE_ACTION_WIDTH = 88;
 const SWIPE_ACTION_TOTAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
@@ -370,7 +369,7 @@ function SwipeableHistoryRow({
 }
 
 export function HistoryScreen(): React.JSX.Element {
-  const { sessions, loading, refresh, updateSession, deleteSession, restoreSession } = useAppData();
+  const { sessions, loading, refresh, updateSession, deleteSession, restoreSession, syncStatus } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -380,7 +379,6 @@ export function HistoryScreen(): React.JSX.Element {
   const [periodOffset, setPeriodOffset] = useState(0);
   const [chartWidth, setChartWidth] = useState(0);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
-  const selectedSampleIdRef = useRef<string | null>(null);
   const chartTouchInProgressRef = useRef(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -410,10 +408,6 @@ export function HistoryScreen(): React.JSX.Element {
   useEffect(() => {
     setSelectedSampleId(null);
   }, [periodOffset, selectedRange]);
-
-  useEffect(() => {
-    selectedSampleIdRef.current = selectedSampleId;
-  }, [selectedSampleId]);
 
   const rangeBounds = useMemo(
     () => getRangeBounds(selectedRange, Date.now(), periodOffset),
@@ -595,7 +589,6 @@ export function HistoryScreen(): React.JSX.Element {
         timestamp: sample.timestamp,
         x,
         anchorY: Math.min(leftY, rightY, totalY),
-        dotYs: [leftY, rightY, totalY],
         leftMl: sample.leftMl,
         rightMl: sample.rightMl,
         totalMl: sample.totalMl,
@@ -648,46 +641,9 @@ export function HistoryScreen(): React.JSX.Element {
     }
   }, [selectedInteractivePoint, selectedSampleId]);
 
-  const onChartFramePress = (touchX: number, touchY: number): void => {
+  const onChartFramePress = (touchX: number): void => {
     if (chartData.interactivePoints.length === 0) {
       return;
-    }
-
-    const nearestPointByDistance = chartData.interactivePoints.reduce(
-      (currentNearest, candidate) => {
-        const candidateDistance = Math.min(
-          ...candidate.dotYs.map((dotY) => {
-            const dx = candidate.x - touchX;
-            const dy = dotY - touchY;
-            return Math.sqrt(dx * dx + dy * dy);
-          })
-        );
-
-        if (!currentNearest || candidateDistance < currentNearest.distance) {
-          return { point: candidate, distance: candidateDistance };
-        }
-
-        return currentNearest;
-      },
-      null as { point: ChartInteractivePoint; distance: number } | null
-    );
-
-    if (nearestPointByDistance && nearestPointByDistance.distance <= CHART_POINT_HIT_RADIUS) {
-      setSelectedSampleId(nearestPointByDistance.point.sampleId);
-      return;
-    }
-
-    const currentSelectedSampleId = selectedSampleIdRef.current;
-    if (currentSelectedSampleId) {
-      const currentIndex = chartData.interactivePoints.findIndex(
-        (point) => point.sampleId === currentSelectedSampleId
-      );
-      if (currentIndex >= 0) {
-        const nextPoint =
-          chartData.interactivePoints[(currentIndex + 1) % chartData.interactivePoints.length];
-        setSelectedSampleId(nextPoint.sampleId);
-        return;
-      }
     }
 
     const nearest = chartData.interactivePoints.reduce((currentNearest, candidate) => {
@@ -726,10 +682,38 @@ export function HistoryScreen(): React.JSX.Element {
   };
 
   const canGoForward = selectedRange !== 'all' && periodOffset < 0;
+  const syncStatusLabelKey =
+    syncStatus.state === 'syncing'
+      ? 'settings.syncStatus.syncing'
+      : syncStatus.state === 'synced'
+        ? 'settings.syncStatus.synced'
+        : syncStatus.state === 'error'
+          ? 'settings.syncStatus.error'
+          : 'settings.syncStatus.idle';
   const editingSession = useMemo(
     () => listSessions.find((session) => session.id === editingSessionId) ?? null,
     [editingSessionId, listSessions]
   );
+  const editHasUnsavedChanges = useMemo(() => {
+    if (!editingSession) {
+      return false;
+    }
+
+    const leftRaw = editLeftMlInput.trim();
+    const rightRaw = editRightMlInput.trim();
+    if (!/^\d+$/.test(leftRaw) || !/^\d+$/.test(rightRaw)) {
+      return true;
+    }
+
+    const leftMl = clampMl(Number(leftRaw));
+    const rightMl = clampMl(Number(rightRaw));
+
+    return (
+      leftMl !== editingSession.leftMl ||
+      rightMl !== editingSession.rightMl ||
+      editTimestamp.getTime() !== editingSession.timestamp
+    );
+  }, [editLeftMlInput, editRightMlInput, editTimestamp, editingSession]);
 
   const openEditSession = (sessionId: string): void => {
     const session = listSessions.find((item) => item.id === sessionId);
@@ -746,7 +730,19 @@ export function HistoryScreen(): React.JSX.Element {
     if (savingEdit || deletingEdit) {
       return;
     }
-    setEditingSessionId(null);
+    if (!editHasUnsavedChanges) {
+      setEditingSessionId(null);
+      return;
+    }
+
+    Alert.alert(t('history.edit.discardTitle'), t('history.edit.discardMessage'), [
+      { text: t('history.edit.keepEditing'), style: 'cancel' },
+      {
+        text: t('history.edit.discardAction'),
+        style: 'destructive',
+        onPress: () => setEditingSessionId(null)
+      }
+    ]);
   };
 
   const onSaveEdit = async (): Promise<void> => {
@@ -898,6 +894,9 @@ export function HistoryScreen(): React.JSX.Element {
 
   return (
     <Screen>
+      <View style={styles.brandStickyShell}>
+        <BrandWordmark />
+      </View>
       <FlatList
         data={listSessions}
         keyExtractor={(item) => item.id}
@@ -916,6 +915,22 @@ export function HistoryScreen(): React.JSX.Element {
             <AppCard style={styles.headerCard}>
               <Text style={styles.headerLabel}>{t(rangeTotalLabelKey)}</Text>
               <Text style={styles.headerValue}>{rangeTotalMl} ml</Text>
+              <View style={styles.syncInlineRow}>
+                <View
+                  style={[
+                    styles.syncStatusDot,
+                    syncStatus.state === 'synced' && styles.syncStatusDotSuccess,
+                    syncStatus.state === 'syncing' && styles.syncStatusDotWorking,
+                    syncStatus.state === 'error' && styles.syncStatusDotError
+                  ]}
+                />
+                <Text style={styles.syncInlineLabel}>{t('history.syncStatusPrefix')} {t(syncStatusLabelKey)}</Text>
+                {syncStatus.lastSyncedAt ? (
+                  <Text style={styles.syncInlineMeta}>
+                    {formatRelativeDuration(syncStatus.lastSyncedAt, Date.now())}
+                  </Text>
+                ) : null}
+              </View>
             </AppCard>
 
             <AppCard style={styles.chartCard}>
@@ -1004,9 +1019,8 @@ export function HistoryScreen(): React.JSX.Element {
                     onTouchCancel={() => {
                       chartTouchInProgressRef.current = false;
                     }}
-                    onPressIn={(event) =>
-                      onChartFramePress(event.nativeEvent.locationX, event.nativeEvent.locationY)
-                    }
+                    onPressIn={(event) => onChartFramePress(event.nativeEvent.locationX)}
+                    onTouchMove={(event) => onChartFramePress(event.nativeEvent.locationX)}
                   >
                     {chartData.yTicks.map((tick) => (
                       <View key={`line-${tick.key}`} style={[styles.chartGridLine, { top: tick.y }]} />
@@ -1355,11 +1369,11 @@ export function HistoryScreen(): React.JSX.Element {
                 onPress={() => {
                   void onSaveEdit();
                 }}
-                disabled={savingEdit || deletingEdit}
+                disabled={savingEdit || deletingEdit || !editHasUnsavedChanges}
                 accessibilityRole="button"
                 style={({ pressed }) => [
                   styles.modalPrimaryButton,
-                  (savingEdit || deletingEdit) && styles.modalButtonDisabled,
+                  (savingEdit || deletingEdit || !editHasUnsavedChanges) && styles.modalButtonDisabled,
                   pressed && styles.chipPressed
                 ]}
               >
@@ -1368,6 +1382,9 @@ export function HistoryScreen(): React.JSX.Element {
                 </Text>
               </Pressable>
             </View>
+            {!editHasUnsavedChanges ? (
+              <Text style={styles.modalNoChangesHint}>{t('history.edit.noChanges')}</Text>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -1401,9 +1418,17 @@ function createStyles(colors: AppColors) {
   const chartSelectionLineColor = isLightChartTheme ? '#1a1a1a' : '#e3ece9';
 
   return StyleSheet.create({
+  brandStickyShell: {
+    minHeight: 28,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    zIndex: 10,
+    backgroundColor: colors.background
+  },
   headerCard: {
     marginBottom: 12,
-    gap: 2
+    gap: 6
   },
   headerLabel: {
     color: colors.textSecondary,
@@ -1414,6 +1439,36 @@ function createStyles(colors: AppColors) {
     color: colors.textPrimary,
     fontSize: 30,
     fontWeight: '700'
+  },
+  syncInlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap'
+  },
+  syncInlineLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600'
+  },
+  syncInlineMeta: {
+    fontSize: 12,
+    color: colors.textSecondary
+  },
+  syncStatusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.textSecondary
+  },
+  syncStatusDotSuccess: {
+    backgroundColor: colors.primary
+  },
+  syncStatusDotWorking: {
+    backgroundColor: colors.accent
+  },
+  syncStatusDotError: {
+    backgroundColor: colors.danger
   },
   chartCard: {
     padding: 12,
@@ -1903,6 +1958,11 @@ function createStyles(colors: AppColors) {
     color: '#fff',
     fontSize: 15,
     fontWeight: '700'
+  },
+  modalNoChangesHint: {
+    textAlign: 'right',
+    fontSize: 12,
+    color: colors.textSecondary
   },
   modalButtonDisabled: {
     opacity: 0.55

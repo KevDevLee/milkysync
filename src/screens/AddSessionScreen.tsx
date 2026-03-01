@@ -1,7 +1,5 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Inter_600SemiBold } from '@expo-google-fonts/inter';
-import { useFonts } from 'expo-font';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -20,6 +18,7 @@ import {
 } from 'react-native';
 
 import { AppCard } from '@/components/AppCard';
+import { BrandWordmark } from '@/components/BrandWordmark';
 import { Screen } from '@/components/Screen';
 import { getCurrentIntlLocale, getCurrentLanguage } from '@/i18n/locale';
 import { useI18n } from '@/i18n/useI18n';
@@ -48,14 +47,11 @@ const ML_STEPPER_QUICK_DELTAS = [-10, -5, 5, 10] as const;
 type AndroidPickerMode = 'date' | 'time' | null;
 
 export function AddSessionScreen(): React.JSX.Element {
-  const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl } = useAppData();
+  const { addSession, deleteSession, sessions, reminderSettings, refresh, dailyTotalMl, syncStatus } = useAppData();
   const { preferences } = useAppPreferences();
   const colors = useAppColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { t } = useI18n();
-  const [brandFontLoaded] = useFonts({
-    Inter_600SemiBold
-  });
   const [leftMlInput, setLeftMlInput] = useState('0');
   const [rightMlInput, setRightMlInput] = useState('0');
   const [note, setNote] = useState('');
@@ -404,6 +400,14 @@ export function AddSessionScreen(): React.JSX.Element {
   const displayMinutes = Math.floor(remainingSeconds / 60);
   const displaySeconds = remainingSeconds % 60;
   const lastSession = sessions[0] ?? null;
+  const syncStatusLabelKey =
+    syncStatus.state === 'syncing'
+      ? 'settings.syncStatus.syncing'
+      : syncStatus.state === 'synced'
+        ? 'settings.syncStatus.synced'
+        : syncStatus.state === 'error'
+          ? 'settings.syncStatus.error'
+          : 'settings.syncStatus.idle';
   const sessionDateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat(getCurrentIntlLocale(), {
@@ -659,6 +663,9 @@ export function AddSessionScreen(): React.JSX.Element {
 
   return (
     <Screen>
+      <View style={styles.brandStickyShell}>
+        <BrandWordmark />
+      </View>
       <ScrollView
         style={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -677,23 +684,6 @@ export function AddSessionScreen(): React.JSX.Element {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.brandHeaderRow}>
-          <View style={styles.brandWordmarkRow}>
-            <Text
-              style={[
-                styles.brandWordmarkText,
-                brandFontLoaded && styles.brandWordmarkTextInter,
-                styles.brandWordmarkInvertedU
-              ]}
-            >
-              U
-            </Text>
-            <Text style={[styles.brandWordmarkText, brandFontLoaded && styles.brandWordmarkTextInter]}>
-              URA
-            </Text>
-          </View>
-        </View>
-
         <AppCard style={styles.lastSessionCard}>
           <View style={styles.topStatsRow}>
             <View style={styles.topStatColumn}>
@@ -717,6 +707,23 @@ export function AddSessionScreen(): React.JSX.Element {
               <Text style={styles.lastSessionValue}>{dailyTotalMl} ml</Text>
               <Text style={styles.lastSessionMeta}>{t('overview.today')}</Text>
             </View>
+          </View>
+
+          <View style={styles.syncInlineRow}>
+            <View
+              style={[
+                styles.syncStatusDot,
+                syncStatus.state === 'synced' && styles.syncStatusDotSuccess,
+                syncStatus.state === 'syncing' && styles.syncStatusDotWorking,
+                syncStatus.state === 'error' && styles.syncStatusDotError
+              ]}
+            />
+            <Text style={styles.syncInlineLabel}>{t('start.syncStatusPrefix')} {t(syncStatusLabelKey)}</Text>
+            {syncStatus.lastSyncedAt ? (
+              <Text style={styles.syncInlineMeta}>
+                {formatRelativeDuration(syncStatus.lastSyncedAt, Date.now())}
+              </Text>
+            ) : null}
           </View>
         </AppCard>
 
@@ -1172,40 +1179,20 @@ export function AddSessionScreen(): React.JSX.Element {
 
 function createStyles(colors: AppColors) {
   return StyleSheet.create({
+  brandStickyShell: {
+    minHeight: 28,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    zIndex: 10,
+    backgroundColor: colors.background
+  },
   scroll: {
     flex: 1
   },
   content: {
     paddingBottom: 16,
     gap: 10
-  },
-  brandHeaderRow: {
-    minHeight: 28,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginBottom: 4
-  },
-  brandWordmarkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2
-  },
-  brandWordmarkText: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 2
-  },
-  brandWordmarkTextInter: {
-    fontFamily: 'Inter_600SemiBold',
-    fontWeight: '600',
-    fontSize: 24,
-    letterSpacing: 2.4,
-    lineHeight: 28
-  },
-  brandWordmarkInvertedU: {
-    transform: [{ rotate: '180deg' }],
-    marginRight: 1
   },
   title: {
     fontSize: 28,
@@ -1230,6 +1217,37 @@ function createStyles(colors: AppColors) {
     width: 1,
     backgroundColor: colors.border,
     opacity: 0.9
+  },
+  syncInlineRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap'
+  },
+  syncInlineLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600'
+  },
+  syncInlineMeta: {
+    fontSize: 12,
+    color: colors.textSecondary
+  },
+  syncStatusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.textSecondary
+  },
+  syncStatusDotSuccess: {
+    backgroundColor: colors.primary
+  },
+  syncStatusDotWorking: {
+    backgroundColor: colors.accent
+  },
+  syncStatusDotError: {
+    backgroundColor: colors.danger
   },
   lastSessionLabel: {
     fontSize: 13,

@@ -137,7 +137,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
           lastSyncedAt: previous.lastSyncedAt,
           errorMessage: message
         }));
-        console.error('Sync failed', error);
+        console.warn('Sync failed', error);
         return false;
       } finally {
         syncInFlightRef.current = null;
@@ -199,7 +199,7 @@ export function AppDataProvider({ children, profile }: AppDataProviderProps): Re
         await refresh();
         await syncNow();
       } catch (error) {
-        console.error('Failed to initialize app data', error);
+        console.warn('Failed to initialize app data', error);
       } finally {
         setLoading(false);
       }
